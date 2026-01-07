@@ -91,6 +91,18 @@ export default class Gantt {
             options.view_mode = options.view_modes[0];
         }
         this.options = { ...DEFAULT_OPTIONS, ...options };
+
+        // >>> SR: Bar Aggregation ---------------------------------------------
+        if (this.options.row_height == null) {
+          //TODO SR: The calculation here is incorrect (Must bar_inner_padding and lane_padding be taken into account?).
+          this.options.row_height = this.options.bar_height + this.options.padding;
+        }
+  
+        if (this.options.bar_inner_padding == null) {
+          this.options.bar_inner_padding = 6;
+        }
+        // <<< SR: Bar Aggregation ---------------------------------------------
+      
         const CSS_VARIABLES = {
             'grid-height': 'container_height',
             'bar-height': 'bar_height',
@@ -140,7 +152,7 @@ export default class Gantt {
     setup_tasks(tasks) {
         this.tasks = tasks
             .map((task, i) => {
-                if (!task.start) {
+                if (!task.start) { //TODO SR: INFO: In the new version, an error is thrown without a start/end date and without a duration.
                     console.error(
                         `task "${task.id}" doesn't have a start date`,
                     );
@@ -183,6 +195,9 @@ export default class Gantt {
                 // cache index
                 task._index = i;
 
+                //TODO SR: This lower logic did not work. Find out why. 
+                // PS: Andrej adjusted it back then. Find out why.
+
                 // if hours is not set, assume the last day is full day
                 // e.g: 2018-09-09 becomes 2018-09-09 23:59:59
                 const task_end_values = date_utils.get_date_values(task._end);
@@ -218,6 +233,11 @@ export default class Gantt {
             })
             .filter((t) => t);
         this.setup_dependencies();
+        // >>> SR: Bar Aggregation ---------------------------------------------
+        this.compute_rows_and_lanes();
+        this.compute_overlap_aggregates();
+        this.relayout_visible_rows();
+        // <<< SR: Bar Aggregation ---------------------------------------------
     }
 
     setup_dependencies() {
@@ -269,7 +289,7 @@ export default class Gantt {
         this.config.step = duration;
         this.config.unit = scale;
         this.config.column_width =
-            this.options.column_width || mode.column_width || 45;
+            this.options.column_width || mode.column_width || 45; //TODO SR INFO: It replaces the old ‘this.options.column_width’.
         this.$container.style.setProperty(
             '--gv-column-width',
             this.config.column_width + 'px',
@@ -277,7 +297,7 @@ export default class Gantt {
         this.config.header_height =
             this.options.lower_header_height +
             this.options.upper_header_height +
-            10;
+            10; //TODO SR: Here, the extra 10 px are added.
     }
 
     setup_dates(refresh = false) {
@@ -362,6 +382,9 @@ export default class Gantt {
         this.bind_grid_click();
         this.bind_holiday_labels();
         this.bind_bar_events();
+        // >>> SR: Bar Aggregation ---------------------------------------------
+        this.bind_outside_click();
+        // <<< SR: Bar Aggregation ---------------------------------------------
     }
 
     render() {
@@ -413,17 +436,26 @@ export default class Gantt {
 
     make_grid_background() {
         const grid_width = this.dates.length * this.config.column_width;
-        const grid_height = Math.max(
-            this.config.header_height +
-                this.options.padding +
-                (this.options.bar_height + this.options.padding) *
-                    this.tasks.length -
-                10,
-            this.options.container_height !== 'auto'
-                ? this.options.container_height
-                : 0,
-        );
-
+      // >>> SR: Bar Aggregation -----------------------------------------------
+      //TODO SR: ACHTUNG! Das hier ist noch nicht richtig. Das this.options.header_height liefert andere Werte als in old.
+      
+      const grid_height = Math.max(
+          this.config.header_height +
+          this.options.padding +
+          this.get_content_height() 
+          //- 10 //TODO SR: Hier wurden die 10px in der neuen Version abgezogen, weil die am Header mit hängen
+           ,
+          this.options.container_height !== 'auto'
+              ? this.options.container_height
+              : 0,
+      );
+      
+        //TODO SR: For debug purposes. Delete it if not more needed!
+        console.log("content_height: ", this.get_content_height());
+        console.log("grid_height: ", grid_height);
+        console.log("task lenght: ", this.tasks.length);
+        // <<< SR: Bar Aggregation ---------------------------------------------
+      
         createSVG('rect', {
             x: 0,
             y: 0,
@@ -531,6 +563,7 @@ export default class Gantt {
         let tick_x = 0;
         let tick_y = this.config.header_height;
         let tick_height = this.grid_height - this.config.header_height;
+        //let tick_height = this.get_content_height(); //TODO SR: It makes no difference.
 
         let $lines_layer = createSVG('g', {
             class: 'lines_layer',
@@ -723,6 +756,10 @@ export default class Gantt {
         const height =
             (this.options.bar_height + this.options.padding) *
             this.tasks.length;
+      
+        //TODO SR: Test it once the padding has been fixed:
+        //const height = this.get_content_height();
+      
         this.layers.grid.innerHTML += `<pattern id="diagonalHatch" patternUnits="userSpaceOnUse" width="4" height="4">
           <path d="M-1,1 l2,-2
                    M0,4 l4,-4
@@ -868,34 +905,69 @@ export default class Gantt {
             lower_y: this.options.upper_header_height + 5,
         };
     }
-
+    
     make_bars() {
-        this.bars = this.tasks.map((task) => {
-            const bar = new Bar(this, task);
-            this.layers.bar.appendChild(bar.group);
-            return bar;
-        });
-    }
+      // >>> SR: Bar Aggregation -----------------------------------------------
+      // Only render non-hidden tasks + all aggregates
+      const renderTasks = this.tasks.filter(t => !t._hidden)
+      .concat(this._aggregateBars || []);
 
+      // Draw the lower lanes first, then the upper ones (lane 0 last).
+      renderTasks.sort((a, b) => {
+        const ra = (a._rowIndex ?? a._index) - (b._rowIndex ?? b._index);
+        if (ra !== 0) return ra;
+        // Draw the larger lane first so that the smaller ones (above) lie on top of it.
+        const la = (a._lane ?? 0), lb = (b._lane ?? 0);
+        if (la !== lb) return lb - la;
+        // stabile Tie-Breaker
+        if (+a._start !== +b._start) return +a._start - +b._start;
+        const ia = isFinite(+a.id) ? +a.id : String(a.id);
+        const ib = isFinite(+b.id) ? +b.id : String(b.id);
+        return ia > ib ? 1 : ia < ib ? -1 : 0;
+      });
+
+      this.bars = renderTasks.map((task) => {
+        const bar = new Bar(this, task);
+        this.layers.bar.appendChild(bar.group);
+        return bar;
+      });
+      // <<< SR: Bar Aggregation -----------------------------------------------
+    }
+    
     make_arrows() {
-        this.arrows = [];
-        for (let task of this.tasks) {
-            let arrows = [];
-            arrows = task.dependencies
-                .map((task_id) => {
-                    const dependency = this.get_task(task_id);
-                    if (!dependency) return;
-                    const arrow = new Arrow(
-                        this,
-                        this.bars[dependency._index], // from_task
-                        this.bars[task._index], // to_task
-                    );
-                    this.layers.arrow.appendChild(arrow.element);
-                    return arrow;
-                })
-                .filter(Boolean); // filter falsy values
-            this.arrows = this.arrows.concat(arrows);
+      // >>> SR: Bar Aggregation -----------------------------------------------
+      this.arrows = [];
+      if (!this.bars || !this.bars.length) return;
+  
+      // Quick access: taskId -> Bar (rendered bars only)
+      const barById = new Map();
+      for (const bar of this.bars) {
+        if (bar && bar.task && bar.task.id != null) {
+          barById.set(bar.task.id, bar);
         }
+      }
+  
+      for (const task of this.tasks) {
+        if (!task || !Array.isArray(task.dependencies) || !task.dependencies.length) continue;
+  
+        // Target bar must be visible
+        const toBar = barById.get(task.id);
+        if (!toBar) continue;
+  
+        for (const depId of task.dependencies) {
+          const depTask = this.get_task(depId);
+          if (!depTask) continue; // ungültige ID
+  
+          // Source bar (dependency) must be visible
+          const fromBar = barById.get(depTask.id);
+          if (!fromBar) continue;
+  
+          const arrow = new Arrow(this, fromBar, toBar);
+          this.layers.arrow.appendChild(arrow.element);
+          this.arrows.push(arrow);
+        }
+      }
+      // <<< SR: Bar Aggregation -----------------------------------------------
     }
 
     map_arrows_on_bars() {
@@ -1406,7 +1478,7 @@ export default class Gantt {
             }
 
             let dx = now_x - x_on_start;
-            console.log($bar_progress);
+            //console.log($bar_progress); //TODO SR: It was already there before me. Take it in?
             if (dx > $bar_progress.max_dx) {
                 dx = $bar_progress.max_dx;
             }
@@ -1575,6 +1647,369 @@ export default class Gantt {
         this.$extras?.remove?.();
         this.popup?.hide?.();
     }
+    
+  // >>> SR: Bar Aggregation ---------------------------------------------------
+  /**
+   * It computes the row and lane allocation for all tasks.
+   */
+  compute_rows_and_lanes() {
+      // 1) Row key per task (lineIndex preferred)
+      this.tasks.forEach(t => {
+        t._rowKey = (t.lineIndex !== undefined) ? t.lineIndex : t._index;
+      });
+  
+      // 2) Group by row
+      const rowMap = new Map();
+      this.tasks.forEach(t => {
+        if (!rowMap.has(t._rowKey)) rowMap.set(t._rowKey, []);
+        rowMap.get(t._rowKey).push(t);
+      });
+      
+      // 3) Sorting row list:
+      //    - if options.row_keys is set -> use these
+      //    - otherwise: all keys from the tasks
+      let rows;
+      if (Array.isArray(this.options.row_keys) && this.options.row_keys.length) {
+        rows = this.options.row_keys.slice();
+      } else {
+        rows = Array.from(rowMap.keys()).sort((a, b) =>
+            a > b ? 1 : a < b ? -1 : 0
+        );
+      }
+  
+      // 4) Lane allocation per row (greedy)
+      const rowMeta = [];
+      rows.forEach((rowKey, rowIndex) => {
+  
+        const list = (rowMap.get(rowKey) || []).slice().sort((a, b) => +a._start - +b._start);
+        const laneEnds = []; // laneIndex -> Date
+  
+        list.forEach(task => {
+          let lane = 0;
+          while (lane < laneEnds.length && !(laneEnds[lane] <= task._start)) lane++;
+          task._lane = lane;
+          task._rowIndex = rowIndex;
+          laneEnds[lane] = task._end;
+        });
+  
+        // calculates the overlap cluster size per task
+        list.forEach(task => {
+          // All tasks in the same row that overlap with another task bar:
+          const overlapping = list.filter(t =>
+              // classical interval overlap: [start_a, end_a) ∩ [start_b, end_b) ≠ ∅
+              (t !== task) && (t._start < task._end) && (task._start < t._end)
+          );
+          // Number of lanes occupied during THIS time slot:
+          const lanesSet = new Set([task._lane, ...overlapping.map(t => t._lane)]);
+          task._clusterLanes = Math.max(1, lanesSet.size);
+        });
+  
+        rowMeta.push({
+          key: rowKey,
+          index: rowIndex,
+          lanes: Math.max(1, laneEnds.length),
+          height: this.options.row_height,
+        });
+      });
+  
+      // 5) Top offsets with fixed row height
+      let cum = 0;
+      rowMeta.forEach(r => {
+        r.top = cum;
+        cum += r.height; // fix for each row
+      });
+  
+      this._rows = rows;
+      this._rowMeta = rowMeta;
+    }
+
+    /**
+     * It aggregates overlapping tasks into one special aggregation bar.
+     */
+    compute_overlap_aggregates() {
+      // Reset
+      this.tasks.forEach(t => {
+        t._hidden = false;
+        t._isAggregate = false;
+        t._aggMembers = undefined;
+        t._aggregatedBy = undefined;
+      });
+      this._aggregateBars = [];
+  
+      const byEndStartId = (a,b) => {
+        // Greedy für Top-Lane: sort by end, then start, then id
+        if (+a._end !== +b._end) return +a._end - +b._end;
+        if (+a._start !== +b._start) return +a._start - +b._start;
+        const ia = isFinite(+a.id) ? +a.id : String(a.id);
+        const ib = isFinite(+b.id) ? +b.id : String(b.id);
+        return ia > ib ? 1 : ia < ib ? -1 : 0;
+      };
+      const byStartThenId = (a,b) => {
+        if (+a._start !== +b._start) return +a._start - +b._start;
+        const ia = isFinite(+a.id) ? +a.id : String(a.id);
+        const ib = isFinite(+b.id) ? +b.id : String(b.id);
+        return ia > ib ? 1 : ia < ib ? -1 : 0;
+      };
+      const fmt = this.options.date_format || 'YYYY-MM-DD';
+  
+      // group rows
+      const rows = new Map();
+      this.tasks.forEach(t => {
+        const key = (t._rowIndex != null) ? t._rowIndex : t._index;
+        if (!rows.has(key)) rows.set(key, []);
+        rows.get(key).push(t);
+      });
+  
+      for (const [rowIndex, listRaw] of rows.entries()) {
+        if (!listRaw.length) continue;
+  
+        // 1) top lane via interval scheduling (max. non-overlapping tasks)
+        const candidates = listRaw.slice().sort(byEndStartId);
+        const topLane = [];
+        let lastEnd = null;
+        for (const t of candidates) {
+          if (lastEnd == null || t._start >= lastEnd) {
+            topLane.push(t);
+            lastEnd = t._end;
+          }
+        }
+  
+        const topSet = new Set(topLane);
+        const hidden = listRaw.filter(t => !topSet.has(t)); // everything that is not at the top
+  
+        // Set lanes
+        topLane.forEach(t => { t._lane = 0; t._rowIndex = rowIndex; });
+        const rowHasAggregates = hidden.length > 0;
+  
+        if (!rowHasAggregates) {
+          // 1. lane if not hidden
+          topLane.forEach(t => { t._clusterLanes = 1; });
+          continue;
+        }
+  
+        // 2) Summarise hidden: sort with start and form union
+        hidden.sort(byStartThenId);
+        
+        const aggs = [];
+        let curStart = null, curEnd = null;
+        let curMembers = new Set();
+  
+        const bottomSingles = []; // collect visible individual tasks
+  
+        const flush = () => {
+          if (!curStart) return;
+  
+          const membersArr = Array.from(curMembers);
+          if (membersArr.length >= 2) {
+            // === Aggregat bauen (wie bisher) ===
+            let minStart = membersArr[0]._start, maxEnd = membersArr[0]._end;
+            for (const m of membersArr) {
+              if (m._start < minStart) minStart = m._start;
+              if (m._end > maxEnd) maxEnd = m._end;
+            }
+            
+            const agg = {
+              id: `agg_${rowIndex}_${this._aggregateBars.length + aggs.length}`,
+              name: `+${membersArr.length}`,
+              start: date_utils.format(minStart, fmt),
+                
+              //TODO SR: Check if it is needed for the time formating
+              end: date_utils.format(maxEnd, fmt),
+              
+/*              end: this.options.step >= 24 && (this.options.step % 24) === 0
+                  ? date_utils.format(date_utils.add(maxEnd, -24, 'hour'), fmt)
+                  : date_utils.format(date_utils.add(maxEnd, -1, 'second'), fmt),*/
+  
+              _start: minStart,
+              _end:   maxEnd,
+              _rowIndex: rowIndex,
+              _lane: 1,                 // always at the bottom lane
+              _clusterLanes: 2,         // (Relayout sets real value later)
+              lineIndex: membersArr[0].lineIndex,
+  
+              draggable: false,
+              progress: 0,
+              
+              // standard colors for aggregates
+              color: '#d2d2ef',
+              colorHover: '#c1c1dd',
+              progressColor: '#a3a3ff',
+              textColor: '#fff',
+  
+              custom_class: 'aggregate',
+              _isAggregate: true,
+              
+              _members: membersArr.map(m => ({
+                id: m.id, 
+                name: m.name, 
+                _start: m._start,
+                _end: m._end, 
+                color: m.color,
+                actual_duration: m.actual_duration, //TODO SR: It is undefined here because it is only set under "bar.compute_duration()".
+                ignored_duration: m.ignored_duration //TODO SR: It is undefined here because it is only set under "bar.compute_duration()".
+              })),
+              _memberNames: membersArr.map(m => m.name),
+            };
+  
+            // hide members
+            membersArr.forEach(m => { m._hidden = true; m._aggregatedBy = agg.id; });
+            aggs.push(agg);
+  
+          } else if (membersArr.length === 1) {
+            // No aggregation, if the bottom lane have only one task
+            const single = membersArr[0];
+            single._hidden = false;
+            single._aggregatedBy = undefined;
+            single._lane = 1;
+            single._rowIndex = rowIndex;
+            bottomSingles.push(single);
+          }
+  
+          curStart = curEnd = null;
+          curMembers.clear();
+        };
+  
+        for (const t of hidden) {
+          if (curStart == null) {
+            curStart = t._start;
+            curEnd   = t._end;
+            curMembers.add(t);
+          } else if (t._start < curEnd) {
+            // overlaps -> in this union segment
+            if (t._end > curEnd) curEnd = t._end;
+            curMembers.add(t);
+          } else {
+            // Gap -> flush old segment and start a new one
+            flush();
+            curStart = t._start;
+            curEnd = t._end;
+            curMembers.add(t);
+          }
+        }
+        flush();
+  
+        // Take over aggregate bars
+        this._aggregateBars.push(...aggs);
+      }
+    }
+
+  /**
+   * It re-calculates the visible rows, lanes and cluster sizes after aggregation.
+   */
+  relayout_visible_rows() {
+      const visible = this.tasks.filter(t => !t._hidden)
+      .concat(this._aggregateBars || []);
+  
+      const rowMap = new Map();
+      visible.forEach(t => {
+        const key = (t._rowIndex != null) ? t._rowIndex : t._index;
+        if (!rowMap.has(key)) rowMap.set(key, []);
+        rowMap.get(key).push(t);
+      });
+  
+      const idKey = (t) => (Number.isFinite(+t.id) ? +t.id : String(t.id));
+      const byStartThenId = (a,b) => {
+        const da = +a._start, db = +b._start;
+        if (da !== db) return da - db;
+        const ia = idKey(a), ib = idKey(b);
+        return ia > ib ? 1 : ia < ib ? -1 : 0;
+      };
+  
+      rowMap.forEach((list, rowIndex) => {
+        // hard resets for each row
+        list.forEach(t => {
+          t._rowIndex = rowIndex;
+          t._lane = undefined;
+          t._clusterLanes = 1; // Default
+        });
+  
+        const overlaps = (a,b) => (a._start < b._end) && (b._start < a._end);
+  
+        const aggs = list.filter(t => t._isAggregate === true);
+        const topsAll = list.filter(t => !t._isAggregate).sort(byStartThenId);
+  
+        // 1) Aggregates always on lane 1, cluster=2 (they have a partner ‘above’)
+        aggs.forEach(a => {
+          a._lane = 1;
+          a._clusterLanes = 2;
+        });
+  
+        // Top-Tasks:
+        // 2) Tasks that intersect an aggregate in time -> Lane 0, cluster=2 (partner of the aggregate)
+        const hitAgg = [];
+        const noAgg  = [];
+        topsAll.forEach(t => (aggs.some(a => overlaps(t,a)) ? hitAgg : noAgg).push(t));
+  
+        hitAgg.forEach(t => {
+          t._lane = 0;
+          t._clusterLanes = 2;
+        });
+  
+        // 3) Collect allocations per lane (by time)
+        const laneTasks = new Map(); // lane -> Array<Task>
+        const assignToLane = (task, lane) => {
+          task._lane = lane;
+          if (!laneTasks.has(lane)) laneTasks.set(lane, []);
+          laneTasks.get(lane).push(task);
+        };
+  
+        // Seed: already assigned (aggregate + hitAgg)
+        aggs.forEach(a => assignToLane(a, 1));
+        hitAgg.forEach(t => assignToLane(t, 0));
+  
+        // 4) Place noAgg in the first collision-free lane, sorted by start
+        noAgg.forEach(t => {
+          let lane = 0;
+          while (true) {
+            const arr = laneTasks.get(lane) || [];
+            const collides = arr.some(x => overlaps(t, x));
+            if (!collides) {
+              assignToLane(t, lane);
+              break;
+            }
+            lane++;
+          }
+        });
+  
+        // 5) define cluster lanes (visible only)
+        const visible = list;
+        visible.forEach(t => {
+          const sameRow = visible.filter(o => o !== t && overlaps(o, t));
+          const laneSet = new Set([t._lane, ...sameRow.map(o => o._lane)]);
+          t._clusterLanes = Math.max(1, laneSet.size);
+        });
+      });
+    }
+
+    /**
+     * Gets the total content height based on the number of rows and row height
+     * @returns {number}
+     */
+    get_content_height() {
+      // Height of the content zone = rows * row_height
+      return (this._rows?.length || 0) * this.options.row_height;
+    }
+
+    /**
+     * Binds the outside click to hide popups and unselect tasks.
+     */
+    bind_outside_click() {
+      this._onDocClick = (e) => {
+  
+        if (this.bar_being_dragged) return;
+  
+        const container = this.$container;
+        const target = e.target;
+  
+        if (container && container.contains(target)) return;
+  
+        // If clicked outside the gantt chard
+        this.hide_popup();
+        this.unselect_all();
+      };
+      document.addEventListener('mousedown', this._onDocClick, true);
+    }
+  // <<< SR: Bar Aggregation ---------------------------------------------------
 }
 
 Gantt.VIEW_MODE = {

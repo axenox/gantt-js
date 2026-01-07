@@ -107,15 +107,15 @@ const DEFAULT_VIEW_MODES = [
     },
 ];
 
-const DEFAULT_OPTIONS = {
+const DEFAULT_OPTIONS = { //TODO SR Info: This is the old "default_options"
     arrow_curve: 5,
     auto_move_label: false,
     bar_corner_radius: 3,
-    bar_height: 30,
+    bar_height: 30, //TODO SR Info: The height of the individual bars
     container_height: 'auto',
     column_width: null,
     date_format: 'YYYY-MM-DD HH:mm',
-    upper_header_height: 45,
+    upper_header_height: 45, //TODO SR: There is no longer a ‘header_height’. Now it is "upper + lower + 10px"
     lower_header_height: 30,
     snap_at: null,
     infinite_padding: true,
@@ -124,6 +124,8 @@ const DEFAULT_OPTIONS = {
     language: 'en',
     lines: 'both',
     move_dependencies: true,
+    //TODO SR INFO: The padding here is the padding from the bar to the top and bottom edges of the line. 
+    // With the new overlap logic, the padding no longer works. The logic from "Changed" version is still faulty and needs to be revised.
     padding: 18,
     popup: (ctx) => {
         ctx.set_title(ctx.task.name);
@@ -156,6 +158,18 @@ const DEFAULT_OPTIONS = {
     view_mode_select: false,
     view_modes: DEFAULT_VIEW_MODES,
     is_weekend: (d) => d.getDay() === 0 || d.getDay() === 6,
+    // >>> SR: Bar Aggregation -------------------------------------------------
+    label_overflow: 'outside', // 'outside' | 'clip' //TODO SR: The “hide” option has been removed for now.
+    label_outside_color: '#555',
+    keep_scroll_position: false, //TODO SR: Take a look at the new ‘maintain_pos’ in Bar. Maybe this is unnecessary here.
+    lane_padding: 4, // vertical distance between lanes in the same row
+    // Automatically rearrange when dragging/resizing. 
+    // Necessary if multiple bars are at the same lineIndex:
+    auto_relayout_on_change: false,
+    row_height: null, //is calculated automatically, if set to null. //TODO SR: Check whether this should also depend on the view_mode.
+    bar_inner_padding: 6, // Total vertical padding within the row for each task
+    row_keys: null, // For empty lines
+    // <<< SR: Bar Aggregation -------------------------------------------------
 };
 
 export { DEFAULT_OPTIONS, DEFAULT_VIEW_MODES };

@@ -23,20 +23,12 @@ export default class Arrow {
         }
         start_x -= 10;
 
-        let start_y =
-            this.gantt.config.header_height +
-            this.gantt.options.bar_height +
-            (this.gantt.options.padding + this.gantt.options.bar_height) *
-                this.from_task.task._index +
-            this.gantt.options.padding / 2;
+        // >>> SR: Bar Aggregation ---------------------------------------------
+        const start_y = this.from_task.$bar.getY() + this.from_task.$bar.getHeight() / 2;
 
-        let end_x = this.to_task.$bar.getX() - 13;
-        let end_y =
-            this.gantt.config.header_height +
-            this.gantt.options.bar_height / 2 +
-            (this.gantt.options.padding + this.gantt.options.bar_height) *
-                this.to_task.task._index +
-            this.gantt.options.padding / 2;
+        const end_x = this.to_task.$bar.getX() - this.gantt.options.padding / 2;
+        const end_y = this.to_task.$bar.getY() + this.to_task.$bar.getHeight() / 2;
+        // <<< SR: Bar Aggregation ---------------------------------------------
 
         const from_is_below_to =
             this.from_task.task._index > this.to_task.task._index;

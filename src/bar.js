@@ -49,14 +49,21 @@ export default class Bar {
 
     prepare_values() {
         this.invalid = this.task.invalid;
-        this.height = this.gantt.options.bar_height;
+        // >>> SR: Bar Aggregation ---------------------------------------------
+        this.height = this.get_bar_height_for_task(this.task);
+        // <<< SR: Bar Aggregation ---------------------------------------------
+        
         this.image_size = this.height - 5;
         this.task._start = new Date(this.task.start);
         this.task._end = new Date(this.task.end);
         this.compute_x();
         this.compute_y();
         this.compute_duration();
-        this.corner_radius = this.gantt.options.bar_corner_radius;
+
+        // >>> SR: Bar Aggregation ---------------------------------------------
+        this.corner_radius = Math.min(this.gantt.options.bar_corner_radius, this.height / 2);
+        // <<< SR: Bar Aggregation ---------------------------------------------
+        
         this.width = this.gantt.config.column_width * this.duration;
         if (!this.task.progress || this.task.progress < 0)
             this.task.progress = 0;
@@ -115,7 +122,12 @@ export default class Bar {
             class: 'bar',
             append_to: this.bar_group,
         });
-        if (this.task.color) this.$bar.style.fill = this.task.color;
+
+        // >>> SR: Bar Aggregation ---------------------------------------------
+        this.set_bar_colors();
+        this.build_aggregation_bar();
+        // <<< SR: Bar Aggregation ---------------------------------------------
+        
         animateSVG(this.$bar, 'width', 0, this.width);
 
         if (this.invalid) {
@@ -441,6 +453,9 @@ export default class Bar {
 
         this.update_label_position();
         this.update_handle_position();
+
+        //TODO SR: (rerender  of aggregate bars problem) If you comment out the bottom line, on_date_change will only be triggered on drop. 
+        // However, this does not solve the problem: the tasks do not stack up and the task status is not updated.
         this.date_changed();
         this.compute_duration();
 
@@ -451,7 +466,8 @@ export default class Bar {
         this.update_progressbar_position();
         this.update_arrow_position();
     }
-
+    
+    //TODO SR: Fix image scroll position.
     update_label_position_on_horizontal_scroll({ x, sx }) {
         const container = this.gantt.$container;
         const label = this.group.querySelector('.bar-label');
@@ -605,10 +621,42 @@ export default class Bar {
     }
 
     compute_y() {
-        this.y =
-            this.gantt.config.header_height +
-            this.gantt.options.padding / 2 +
-            this.task._index * (this.height + this.gantt.options.padding);
+      
+      // >>> SR: Bar Aggregation -----------------------------------------------
+      const rowIndex = (this.task._rowIndex != null) ? this.task._rowIndex : this.task._index;
+      const lane = (this.task._lane != null) ? this.task._lane : 0;
+
+      const baseY =
+          this.gantt.config.header_height +
+          //TODO SR INFO: ATTENTION! The incorrect procedure in the old adapted version is as follows: The padding should only change the distance to the header in the first line. 
+          // The first line should appear larger accordingly and the others should remain the same. 
+          // Since the top line does not change here, all bars automatically slide down. 
+          // The problem currently lies in the incorrect calculation of padding in connection with overlapping lanes.
+          
+          //TODO SR: The padding already malfunctioned in the old adapted version and needs to be reworked.
+          //this.gantt.options.padding + //TODO SR: Put the padding back as soon as the problem has been fixed!
+          this.rowTop(rowIndex);
+
+      const innerTop = (this.gantt.options.bar_inner_padding || 0) / 2;
+      
+      // Lane offset remains the same, but starts below the inner top padding
+      let y = baseY + innerTop + lane * (this.height + this.gantt.options.lane_padding);
+      
+      //TODO SR: Debug output. Delete before the release:
+/*    console.log("rowIndex: ", rowIndex);
+      console.log("lane: ", lane);
+      
+      console.log("baseY: " + baseY + " = " + "header_height: " + this.gantt.config.header_height + " padding: " + this.gantt.options.padding + " rowTop: " + this.rowTop(rowIndex));
+      
+      console.log("innerTop: ", innerTop);
+      console.log("y: ", y);
+      
+      console.log("------------------------------");
+      */
+
+      // <<< SR: Bar Aggregation -----------------------------------------------
+      
+      this.y = y;
     }
 
     compute_duration() {
@@ -688,31 +736,100 @@ export default class Bar {
         let x_offset_label_img = this.image_size + 10;
         const labelWidth = label.getBBox().width;
         const barWidth = bar.getWidth();
-        if (labelWidth > barWidth) {
-            label.classList.add('big');
-            if (img) {
-                img.setAttribute('x', bar.getEndX() + padding);
-                img_mask.setAttribute('x', bar.getEndX() + padding);
-                label.setAttribute('x', bar.getEndX() + x_offset_label_img);
-            } else {
-                label.setAttribute('x', bar.getEndX() + padding);
-            }
-        } else {
-            label.classList.remove('big');
-            if (img) {
-                img.setAttribute('x', bar.getX() + padding);
-                img_mask.setAttribute('x', bar.getX() + padding);
-                label.setAttribute(
-                    'x',
-                    bar.getX() + barWidth / 2 + x_offset_label_img,
-                );
-            } else {
-                label.setAttribute(
-                    'x',
-                    bar.getX() + barWidth / 2 - labelWidth / 2,
-                );
-            }
+
+        // >>> SR: Bar Aggregation ---------------------------------------------
+        const overflow = this.gantt.options.label_overflow || 'outside';
+        const isStacked = (this.task._clusterLanes || 1) > 1;
+        const isLowHeight = this.height <= 14;
+
+        // Reset classes
+        label.classList.remove('big');
+        label.classList.remove('clip-left');
+        label.classList.remove('small');
+
+        if (isStacked || isLowHeight) {
+          label.classList.add('small');
         }
+        
+        const labelMidStartX = bar.getX() + barWidth / 2 - labelWidth / 2
+        const imgEndX = bar.getX() + x_offset_label_img;
+        const imgLabelCollision = (img && imgEndX >= labelMidStartX);
+        
+        // label (and image) fit within bar
+        if (!imgLabelCollision && (labelWidth <= barWidth)) {
+          label.classList.remove('big');
+          
+          if (img) {
+            img.setAttribute('x', bar.getX() + padding);
+            img_mask.setAttribute('x', bar.getX() + padding);
+          }
+            
+          label.setAttribute( //TODO SR: New temp fix for image + label collision
+              'x',
+              labelMidStartX,
+          );
+            
+          label.removeAttribute('clip-path');
+          label.style.fill = this.task.textColor;
+          
+          return;
+        }
+        
+        if (overflow === 'outside') {
+          label.classList.add('big');
+          if (img) {
+            img.setAttribute('x', bar.getEndX() + padding);
+            img_mask.setAttribute('x', bar.getEndX() + padding);
+            label.setAttribute('x', bar.getEndX() + x_offset_label_img);
+          } else {
+            label.setAttribute('x', bar.getEndX() + padding);
+          }
+  
+          label.removeAttribute('clip-path');
+          label.style.fill = String(this.gantt.options.label_outside_color);
+          
+        } else if (overflow === 'clip') {
+          // The label is clipped inside the bar. 
+          // It is useful if multiple bars are at the same line index, 
+          // so that the labels do not overlap. 
+          
+          label.classList.remove('big');
+          const insetX = 2;
+          const insetY = 1;
+          
+          if (img) {
+            img.setAttribute('x', bar.getX() + padding);
+            img_mask.setAttribute('x', bar.getX() + padding);
+          }
+  
+          label.classList.add('clip-left');
+          label.setAttribute('x', bar.getX() + insetX + (img ? x_offset_label_img : 0));
+          label.setAttribute('y', bar.getY() + bar.getHeight() / 2);
+  
+          // ClipPath: cuts ONLY on the right (and top/bottom), not on the left
+          const clipId = `clip-label-${String(this.task.id).replace(/[^a-zA-Z0-9_-]/g,'')}`;
+          let defs = this.gantt.$svg.querySelector('defs');
+          if (!defs) defs = createSVG('defs', { append_to: this.gantt.$svg });
+  
+          // Removes old clip
+          const old = this.gantt.$svg.querySelector(`#${clipId}`);
+          if (old) old.remove();
+  
+          const cp = createSVG('clipPath', { id: clipId, append_to: defs });
+          
+          createSVG('rect', {
+            x:  bar.getX() + insetX + (img ? x_offset_label_img : 0),
+            y: bar.getY() + insetY,
+            width: Math.max(0, bar.getWidth() - (img ? x_offset_label_img : 0) - insetX * 2),
+            height: Math.max(0, bar.getHeight() - insetY * 2),
+            rx: Math.max(0, this.corner_radius - insetX),
+            ry: Math.max(0, this.corner_radius - insetY),
+            append_to: cp
+          });
+  
+          label.setAttribute('clip-path', `url(#${clipId})`);
+        }
+        // <<< SR: Bar Aggregation -----------------------------------------------
     }
 
     update_handle_position() {
@@ -734,4 +851,104 @@ export default class Bar {
             arrow.update();
         }
     }
+    
+    // >>> SR: Bar Aggregation -------------------------------------------------
+    /**
+     * Aggregation bar buildup
+     *
+     * here, the Aggregation look is made.
+     * It contains all the bars that overlaps more than 2 times with another bars.
+     */
+    build_aggregation_bar() {
+      
+      let defs = this.gantt.$svg.querySelector('defs');
+      if (!defs) defs = createSVG('defs', { append_to: this.gantt.$svg });
+
+      const inset = 1.5; // px: minimum distance to edge/frame
+      const clipId = `clip-legend-${String(this.task.id).replace(/[^a-zA-Z0-9_-]/g, '')}`;
+
+      const oldClip = this.gantt.$svg.querySelector(`#${clipId}`);
+      if (oldClip) oldClip.remove();
+
+      // ClipPath: ClipPath: rounded rectangle within the bar
+      const $cp = createSVG('clipPath', { id: clipId, append_to: defs });
+      createSVG('rect', {
+        x: this.x + inset,
+        y: this.y + inset,
+        width: Math.max(0, this.width - inset * 2),
+        height: Math.max(0, this.height - inset * 2),
+        rx: Math.max(0, this.corner_radius - inset),
+        ry: Math.max(0, this.corner_radius - inset),
+        append_to: $cp
+      });
+
+      // color swatches, that show the member task colors
+      if (this.task._isAggregate && Array.isArray(this.task._members)) {
+        const colorSwatches = this.task._members.map(m => m && m.color).filter(Boolean);
+
+        if (colorSwatches.length) {
+          const swatchW = 8; // The wide of shown swatches in pixel
+          const gapX = 1; // the gap between the swatches
+          const h = Math.max(0, this.height - inset * 2);
+          let xSwatch = this.x + inset; // starting from the left
+
+          // Group of swatches with clip
+          const swatchesGroup = createSVG('g', {
+            append_to: this.bar_group
+          });
+          swatchesGroup.setAttribute('clip-path', `url(#${clipId})`);
+
+          colorSwatches.forEach(c => {
+            const r = createSVG('rect', {
+              x: xSwatch,
+              y: this.y + inset,
+              width: swatchW,
+              height: h,
+              class: 'agg-swatch-v',
+              append_to: swatchesGroup
+            });
+            r.setAttribute('fill', c);
+            r.setAttribute('pointer-events', 'none');
+            xSwatch += swatchW + gapX;
+            if (xSwatch > this.x + this.width - inset) return; // Safety, if the bar is too narrow
+          });
+        }
+      }
+    }
+
+  /**
+   * It sets the bar colors from task properties.
+   */
+  set_bar_colors() {
+      if (this.task.color) {
+        // This section overrides the hover. Therefore, CSS variables are used instead.
+        this.$bar.style.setProperty('--bar-fill', String(this.task.color));
+      }
+
+      if (this.task.colorHover) {
+        this.$bar.style.setProperty('--bar-fill-hover', String(this.task.colorHover));
+      }
+    }
+
+  /**
+   * Calculates the bar height for a task, considering cluster lanes and paddings.
+   * @param task
+   * @returns {number}
+   */
+    get_bar_height_for_task(task) {
+      const lanes = Math.max(1, task._clusterLanes || 1);
+      const inner = Math.max(0, this.gantt.options.bar_inner_padding || 0);
+      const laneGaps = (lanes - 1) * this.gantt.options.lane_padding;
+  
+      // available height = row height minus inner padding minus gaps between lanes
+      const available = this.gantt.options.row_height - inner - laneGaps;
+  
+      const h = available / lanes;
+      return Math.max(6, h); // small lower limit so that handles/labels remain usable
+    }
+    
+    rowTop(rowIndex) {
+      return this.gantt._rowMeta[rowIndex]?.top || 0;
+    }
+    // <<< SR: Bar Aggregation -------------------------------------------------
 }
