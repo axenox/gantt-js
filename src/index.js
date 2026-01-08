@@ -194,16 +194,24 @@ export default class Gantt {
 
                 // cache index
                 task._index = i;
-
-                //TODO SR: This lower logic did not work. Find out why. 
-                // PS: Andrej adjusted it back then. Find out why.
-
+                
+                // >>> SR: Bar Aggregation -------------------------------------
+              
                 // if hours is not set, assume the last day is full day
                 // e.g: 2018-09-09 becomes 2018-09-09 23:59:59
                 const task_end_values = date_utils.get_date_values(task._end);
+                
+                //TODO SR: This only works if you return the following under date_utils.parse(): "return new Date(...vals);
                 if (task_end_values.slice(3).every((d) => d === 0)) {
                     task._end = date_utils.add(task._end, 24, 'hour');
                 }
+
+              //TODO SR: This lower logic did not work. Find out why.
+              // TODO SR: The piece of code fixes the problem when a date is specified without hours, NOT!
+/*              if ( this.options.step >= 24 && (this.options.step % 24) === 0) { //TODO SR: Check, why here is a ">=" in the condition.
+                task._end = date_utils.add(task._end, 24, 'hour');
+              }*/
+              // <<< SR: Bar Aggregation ---------------------------------------
 
                 // dependencies
                 if (
@@ -681,9 +689,11 @@ export default class Gantt {
                             this.config.step) *
                         this.config.column_width;
                     const height = this.grid_height - this.config.header_height;
+                    // >>> SR: Bar Aggregation ---------------------------------
                     const d_formatted = date_utils
-                        .format(d, 'YYYY-MM-DD', this.options.language)
+                        .format(d, 'YYYY-MM-dd', this.options.language)
                         .replace(' ', '_');
+                    // <<< SR: Bar Aggregation ---------------------------------
 
                     if (labels[d]) {
                         let label = this.create_el({
@@ -1750,7 +1760,7 @@ export default class Gantt {
         const ib = isFinite(+b.id) ? +b.id : String(b.id);
         return ia > ib ? 1 : ia < ib ? -1 : 0;
       };
-      const fmt = this.options.date_format || 'YYYY-MM-DD';
+      const fmt = this.options.date_format || 'YYYY-MM-dd';
   
       // group rows
       const rows = new Map();
@@ -1801,11 +1811,15 @@ export default class Gantt {
   
           const membersArr = Array.from(curMembers);
           if (membersArr.length >= 2) {
-            // === Aggregat bauen (wie bisher) ===
+            // aggregation build
             let minStart = membersArr[0]._start, maxEnd = membersArr[0]._end;
             for (const m of membersArr) {
+              const orig_end = new Date(m.end);
+              
               if (m._start < minStart) minStart = m._start;
-              if (m._end > maxEnd) maxEnd = m._end;
+              //if (m._end > maxEnd) maxEnd = m._end; 
+              // TODO SR: Date without hours fix. Test it.
+              if (orig_end > maxEnd) maxEnd = orig_end;
             }
             
             const agg = {
@@ -1821,7 +1835,7 @@ export default class Gantt {
                   : date_utils.format(date_utils.add(maxEnd, -1, 'second'), fmt),*/
   
               _start: minStart,
-              _end:   maxEnd,
+              _end: maxEnd,
               _rowIndex: rowIndex,
               _lane: 1,                 // always at the bottom lane
               _clusterLanes: 2,         // (Relayout sets real value later)
@@ -1843,7 +1857,8 @@ export default class Gantt {
                 id: m.id, 
                 name: m.name, 
                 _start: m._start,
-                _end: m._end, 
+                _end: m._end,
+                end: m.end, //TODO SR: Date without hours fix. Test it.
                 color: m.color,
                 actual_duration: m.actual_duration, //TODO SR: It is undefined here because it is only set under "bar.compute_duration()".
                 ignored_duration: m.ignored_duration //TODO SR: It is undefined here because it is only set under "bar.compute_duration()".
@@ -1872,7 +1887,7 @@ export default class Gantt {
         for (const t of hidden) {
           if (curStart == null) {
             curStart = t._start;
-            curEnd   = t._end;
+            curEnd = t._end;
             curMembers.add(t);
           } else if (t._start < curEnd) {
             // overlaps -> in this union segment

@@ -54,8 +54,12 @@ export default class Bar {
         // <<< SR: Bar Aggregation ---------------------------------------------
         
         this.image_size = this.height - 5;
-        this.task._start = new Date(this.task.start);
-        this.task._end = new Date(this.task.end);
+        
+        // >>> SR: Bar Aggregation ---------------------------------------------
+        //this.task._start = new Date(this.task.start);
+        //this.task._end = new Date(this.task.end);
+        this.task.orig_end = new Date(this.task.end); //TODO SR: Date without hours fix. Test it.
+        // <<< SR: Bar Aggregation ---------------------------------------------
         this.compute_x();
         this.compute_y();
         this.compute_duration();
@@ -510,10 +514,14 @@ export default class Bar {
             this.task._start = new_start_date;
         }
 
-        if (Number(this.task._end) !== Number(new_end_date)) {
+        // >>> SR: Bar Aggregation ---------------------------------------------
+        //if (Number(this.task._end) !== Number(new_end_date)) { //TODO SR: Date without hours fix. Test it.
+        if (Number(this.task.orig_end) !== Number(new_end_date)) {
             changed = true;
-            this.task._end = new_end_date;
+            //this.task._end = new_end_date; //TODO SR: Date without hours fix. Test it.
+            this.task.orig_end = new_end_date;
         }
+        // <<< SR: Bar Aggregation ---------------------------------------------
 
         if (!changed) return;
 
@@ -664,7 +672,10 @@ export default class Bar {
             duration_in_days = 0;
         for (
             let d = new Date(this.task._start);
-            d < this.task._end;
+            // >>> SR: Bar Aggregation -----------------------------------------
+            //d < this.task._end; //TODO SR: Date without hours fix. Test it.
+            d < this.task.orig_end;
+            // <<< SR: Bar Aggregation -----------------------------------------
             d.setDate(d.getDate() + 1)
         ) {
             duration_in_days++;

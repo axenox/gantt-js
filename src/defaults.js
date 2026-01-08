@@ -1,5 +1,12 @@
 import date_utils from './date_utils';
 
+// >>> SR: Bar Aggregation -----------------------------------------------------
+/**
+ * The date format was changed to ICU, 
+ * that´s why all capital "D" and "DD" was changed to lowercase "dd" in this file.
+ */
+// >>> SR: Bar Aggregation -----------------------------------------------------
+
 function getDecade(d) {
     const year = d.getFullYear();
     return year - (year % 10) + '';
@@ -7,8 +14,8 @@ function getDecade(d) {
 
 function formatWeek(d, ld, lang) {
     let endOfWeek = date_utils.add(d, 6, 'day');
-    let endFormat = endOfWeek.getMonth() !== d.getMonth() ? 'D MMM' : 'D';
-    let beginFormat = !ld || d.getMonth() !== ld.getMonth() ? 'D MMM' : 'D';
+    let endFormat = endOfWeek.getMonth() !== d.getMonth() ? 'dd MMM' : 'dd';
+    let beginFormat = !ld || d.getMonth() !== ld.getMonth() ? 'dd MMM' : 'dd';
     return `${date_utils.format(d, beginFormat, lang)} - ${date_utils.format(endOfWeek, endFormat, lang)}`;
 }
 
@@ -17,11 +24,11 @@ const DEFAULT_VIEW_MODES = [
         name: 'Hour',
         padding: '7d',
         step: '1h',
-        date_format: 'YYYY-MM-DD HH:',
+        date_format: 'YYYY-MM-dd HH:',
         lower_text: 'HH',
         upper_text: (d, ld, lang) =>
             !ld || d.getDate() !== ld.getDate()
-                ? date_utils.format(d, 'D MMMM', lang)
+                ? date_utils.format(d, 'dd MMMM', lang)
                 : '',
         upper_text_frequency: 24,
     },
@@ -29,11 +36,11 @@ const DEFAULT_VIEW_MODES = [
         name: 'Quarter Day',
         padding: '7d',
         step: '6h',
-        date_format: 'YYYY-MM-DD HH:',
+        date_format: 'YYYY-MM-dd HH:',
         lower_text: 'HH',
         upper_text: (d, ld, lang) =>
             !ld || d.getDate() !== ld.getDate()
-                ? date_utils.format(d, 'D MMM', lang)
+                ? date_utils.format(d, 'dd MMM', lang)
                 : '',
         upper_text_frequency: 4,
     },
@@ -41,24 +48,24 @@ const DEFAULT_VIEW_MODES = [
         name: 'Half Day',
         padding: '14d',
         step: '12h',
-        date_format: 'YYYY-MM-DD HH:',
+        date_format: 'YYYY-MM-dd HH:',
         lower_text: 'HH',
         upper_text: (d, ld, lang) =>
             !ld || d.getDate() !== ld.getDate()
                 ? d.getMonth() !== d.getMonth()
-                    ? date_utils.format(d, 'D MMM', lang)
-                    : date_utils.format(d, 'D', lang)
+                    ? date_utils.format(d, 'dd MMM', lang)
+                    : date_utils.format(d, 'dd', lang)
                 : '',
         upper_text_frequency: 2,
     },
     {
         name: 'Day',
         padding: '7d',
-        date_format: 'YYYY-MM-DD',
+        date_format: 'YYYY-MM-dd',
         step: '1d',
         lower_text: (d, ld, lang) =>
             !ld || d.getDate() !== ld.getDate()
-                ? date_utils.format(d, 'D', lang)
+                ? date_utils.format(d, 'dd', lang)
                 : '',
         upper_text: (d, ld, lang) =>
             !ld || d.getMonth() !== ld.getMonth()
@@ -70,7 +77,7 @@ const DEFAULT_VIEW_MODES = [
         name: 'Week',
         padding: '1m',
         step: '7d',
-        date_format: 'YYYY-MM-DD',
+        date_format: 'YYYY-MM-dd',
         column_width: 140,
         lower_text: formatWeek,
         upper_text: (d, ld, lang) =>
@@ -114,7 +121,7 @@ const DEFAULT_OPTIONS = { //TODO SR Info: This is the old "default_options"
     bar_height: 30, //TODO SR Info: The height of the individual bars
     container_height: 'auto',
     column_width: null,
-    date_format: 'YYYY-MM-DD HH:mm',
+    date_format: 'YYYY-MM-dd HH:mm',
     upper_header_height: 45, //TODO SR: There is no longer a ‘header_height’. Now it is "upper + lower + 10px"
     lower_header_height: 30,
     snap_at: null,
@@ -134,12 +141,13 @@ const DEFAULT_OPTIONS = { //TODO SR Info: This is the old "default_options"
 
         const start_date = date_utils.format(
             ctx.task._start,
-            'MMM D',
+            'MMM dd',
             ctx.chart.options.language,
         );
         const end_date = date_utils.format(
-            date_utils.add(ctx.task._end, -1, 'second'),
-            'MMM D',
+            //date_utils.add(ctx.task._end, -1, 'second'),
+            date_utils.add(ctx.task.orig_end, -1, 'second'),
+            'MMM dd',
             ctx.chart.options.language,
         );
 

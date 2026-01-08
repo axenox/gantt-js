@@ -53,6 +53,10 @@ export default {
                 vals = vals.concat(time_parts);
             }
             return new Date(...vals);
+          // >>> SR: Bar Aggregation -------------------------------------------
+          // TODO SR: It comes from the adjusted old version. This adds 1 hour and breaks the "date without hours" logic
+          //return new Date(Date.UTC(...vals)); // 2023-02-10 -> 12445873454... 
+          // <<< SR: Bar Aggregation -------------------------------------------
         }
     },
 
@@ -78,11 +82,17 @@ export default {
         return date_string + (with_time ? ' ' + time_string : '');
     },
 
-    format(date, date_format = 'YYYY-MM-DD HH:mm:ss.SSS', lang = 'en') {
+    // >>> SR: Bar Aggregation -------------------------------------------------
+    // TODO SR: Complete the time formating testing and clean the old code here:
+    format(date, format_string = 'YYYY-MM-dd HH:mm:ss.SSS') {
+      return exfTools.date.format(date, format_string);
+    },
+
+/*    format(date, date_format = 'YYYY-MM-DD HH:mm:ss.SSS', lang = 'en') {
         const dateTimeFormat = new Intl.DateTimeFormat(lang, {
             month: 'long',
         });
-        const dateTimeFormatShort = new Intl.DateTimeFormat(lang, {
+        const dateTimeFormatShort = new Intl.DateTimeFormat(lang, { //TODO SR: that is new. Check it.
             month: 'short',
         });
         const month_name = dateTimeFormat.format(date);
@@ -100,7 +110,7 @@ export default {
             SSS: values[6],
             D: values[2],
             MMMM: month_name_capitalized,
-            MMM: dateTimeFormatShort.format(date),
+            MMM: dateTimeFormatShort.format(date), //TODO SR: that is new. Check it.
         };
 
         let str = date_format;
@@ -110,7 +120,7 @@ export default {
             .sort((a, b) => b.length - a.length) // big string first
             .forEach((key) => {
                 if (str.includes(key)) {
-                    str = str.replaceAll(key, `$${formatted_values.length}`);
+                    str = str.replaceAll(key, `$${formatted_values.length}`); //TODO SR: replaceAll instead of replace is new
                     formatted_values.push(format_map[key]);
                 }
             });
@@ -120,7 +130,8 @@ export default {
         });
 
         return str;
-    },
+    },*/
+    // <<< SR: Bar Aggregation -------------------------------------------------
 
     diff(date_a, date_b, scale = 'day') {
         let milliseconds, seconds, hours, minutes, days, months, years;
@@ -181,7 +192,12 @@ export default {
 
     add(date, qty, scale) {
         qty = parseInt(qty, 10);
-        const vals = [
+        
+        // >>> SR: Bar Aggregation ---------------------------------------------
+        return moment(date).add(qty, `${scale}s`).toDate();
+
+        // TODO SR: Complete the time formating testing and clean the old code here:
+/*        const vals = [
             date.getFullYear() + (scale === YEAR ? qty : 0),
             date.getMonth() + (scale === MONTH ? qty : 0),
             date.getDate() + (scale === DAY ? qty : 0),
@@ -190,7 +206,8 @@ export default {
             date.getSeconds() + (scale === SECOND ? qty : 0),
             date.getMilliseconds() + (scale === MILLISECOND ? qty : 0),
         ];
-        return new Date(...vals);
+        return new Date(...vals);*/
+      // >>> SR: Bar Aggregation -------------------------------------------------
     },
 
     start_of(date, scale) {
@@ -209,6 +226,12 @@ export default {
             return scores[_scale] <= max_score;
         }
 
+        // >>> SR: Bar Aggregation ---------------------------------------------
+        if (date === undefined) {
+          return new Date();
+        }
+        // <<< SR: Bar Aggregation ---------------------------------------------
+        
         const vals = [
             date.getFullYear(),
             should_reset(YEAR) ? 0 : date.getMonth(),
