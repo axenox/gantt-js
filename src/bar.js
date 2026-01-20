@@ -236,13 +236,20 @@ export default class Bar {
             x_coord = this.x + this.image_size + 5;
         }
 
-        createSVG('text', {
+        // >>> SR: Bar Aggregation ---------------------------------------------
+        const $label = createSVG('text', {
             x: x_coord,
             y: this.y + this.height / 2,
             innerHTML: this.task.name,
             class: 'bar-label',
             append_to: this.bar_group,
         });
+        
+        if (this.task.textColor) {
+          $label.style.fill = String(this.task.textColor);
+        }
+        // <<< SR: Bar Aggregation ---------------------------------------------
+        
         // labels get BBox in the next tick
         requestAnimationFrame(() => this.update_label_position());
     }
@@ -382,18 +389,25 @@ export default class Bar {
                         task: this.task,
                         target: this.$bar,
                     });
+                // >>> SR: Bar Aggregation -------------------------------------
+                //New: Added "CSS.escape" to escape special characters in task IDs
                 this.gantt.$container
-                    .querySelector(`.highlight-${task_id}`)
+                    .querySelector(`.highlight-${CSS.escape(task_id)}`)
                     .classList.remove('hide');
+                // <<< SR: Bar Aggregation -------------------------------------
             }, 200);
         });
         $.on(this.group, 'mouseleave', () => {
             clearTimeout(timeout);
             if (this.gantt.options.popup_on === 'hover')
                 this.gantt.popup?.hide?.();
+            
+            // >>> SR: Bar Aggregation -----------------------------------------
+            //New: Added "CSS.escape" to escape special characters in task IDs
             this.gantt.$container
-                .querySelector(`.highlight-${task_id}`)
+                .querySelector(`.highlight-${CSS.escape(task_id)}`)
                 .classList.add('hide');
+            // <<< SR: Bar Aggregation -----------------------------------------
         });
 
         $.on(this.group, 'click', () => {

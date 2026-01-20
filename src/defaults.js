@@ -87,6 +87,17 @@ const DEFAULT_VIEW_MODES = [
         thick_line: (d) => d.getDate() >= 1 && d.getDate() <= 7,
         upper_text_frequency: 4,
     },
+    { //TODO SR Info: Testing view
+      name: "Quartale",
+      padding: "1m",
+      step: "7d",
+      date_format: "YYYY-MM-dd",
+      column_width: 50,
+      lower_text: "w",
+      upper_text: (d, ld, lang) => !ld || d.getMonth() !== ld.getMonth() ? date_utils.format(d, "MMM", lang) : "",
+      thick_line: (d) => d.getDate() >= 1 && d.getDate() <= 7,
+      upper_text_frequency: 4
+    },
     {
         name: 'Month',
         padding: '2m',
