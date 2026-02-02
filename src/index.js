@@ -608,6 +608,12 @@ export default class Gantt {
         }
         if (this.options.lines === 'horizontal') return;
 
+        // >>> SR: Bar Aggregation ---------------------------------------------
+        if (this.config.view_mode.thick_line_color) {
+          this.$container.style.setProperty("--g-tick-color-thick", String(this.config.view_mode.thick_line_color));
+        }
+        // <<< SR: Bar Aggregation ---------------------------------------------
+
         for (let date of this.dates) {
             let tick_class = 'tick';
             if (
@@ -623,7 +629,7 @@ export default class Gantt {
                 append_to: this.layers.grid,
             });
 
-            if (this.view_is('month')) {
+            if (this.view_is('month')) { //TODO SR: Check this special month / year logic for thick lines.
                 tick_x +=
                     (date_utils.get_days_in_month(date) *
                         this.config.column_width) /
