@@ -2057,13 +2057,16 @@ export default class Gantt {
 }
 
 Gantt.VIEW_MODE = {
-    HOUR: DEFAULT_VIEW_MODES[0],
+  // >>> SR: Bar Aggregation ---------------------------------------------------
+  // It currently doesn't work properly with PowerUI
+/*    HOUR: DEFAULT_VIEW_MODES[0],
     QUARTER_DAY: DEFAULT_VIEW_MODES[1],
-    HALF_DAY: DEFAULT_VIEW_MODES[2],
-    DAY: DEFAULT_VIEW_MODES[3],
-    WEEK: DEFAULT_VIEW_MODES[4],
-    MONTH: DEFAULT_VIEW_MODES[5],
-    YEAR: DEFAULT_VIEW_MODES[6],
+    HALF_DAY: DEFAULT_VIEW_MODES[2],*/
+  // <<< SR: Bar Aggregation ---------------------------------------------------
+    DAY: DEFAULT_VIEW_MODES[0],
+    WEEK: DEFAULT_VIEW_MODES[1],
+    MONTH: DEFAULT_VIEW_MODES[2],
+    YEAR: DEFAULT_VIEW_MODES[3],
 };
 
 function generate_id(task) {

@@ -9,7 +9,10 @@ import date_utils from './date_utils';
 
 function getDecade(d) {
     const year = d.getFullYear();
-    return year - (year % 10) + '';
+  // >>> SR: Bar Aggregation ---------------------------------------------------
+  return String(year - (year % 10));
+  // <<< SR: Bar Aggregation ---------------------------------------------------
+  
 }
 
 function formatWeek(d, ld, lang) {
@@ -20,7 +23,9 @@ function formatWeek(d, ld, lang) {
 }
 
 const DEFAULT_VIEW_MODES = [
-    {
+    // >>> SR: Bar Aggregation -------------------------------------------------
+    // It currently doesn't work properly with PowerUI
+/*    {
         name: 'Hour',
         padding: '7d',
         step: '1h',
@@ -57,7 +62,8 @@ const DEFAULT_VIEW_MODES = [
                     : date_utils.format(d, 'dd', lang)
                 : '',
         upper_text_frequency: 2,
-    },
+    },*/
+    // <<< SR: Bar Aggregation -------------------------------------------------
     {
         name: 'Day',
         padding: '7d',
@@ -86,17 +92,6 @@ const DEFAULT_VIEW_MODES = [
                 : '',
         thick_line: (d) => d.getDate() >= 1 && d.getDate() <= 7,
         upper_text_frequency: 4,
-    },
-    { //TODO SR Info: Testing view
-      name: "Quartale",
-      padding: "1m",
-      step: "7d",
-      date_format: "YYYY-MM-dd",
-      column_width: 50,
-      lower_text: "w",
-      upper_text: (d, ld, lang) => !ld || d.getMonth() !== ld.getMonth() ? date_utils.format(d, "MMM", lang) : "",
-      thick_line: (d) => d.getDate() >= 1 && d.getDate() <= 7,
-      upper_text_frequency: 4
     },
     {
         name: 'Month',
@@ -182,9 +177,6 @@ const DEFAULT_OPTIONS = { //TODO SR Info: This is the old "default_options"
     label_outside_color: '#555',
     keep_scroll_position: false, //TODO SR: Take a look at the new ‘maintain_pos’ in Bar. Maybe this is unnecessary here.
     lane_padding: 4, // vertical distance between lanes in the same row
-    // Automatically rearrange when dragging/resizing. 
-    // Necessary if multiple bars are at the same lineIndex:
-    auto_relayout_on_change: false,
     row_height: null, //is calculated automatically, if set to null. //TODO SR: Check whether this should also depend on the view_mode.
     bar_inner_padding: 6, // Total vertical padding within the row for each task
     row_keys: null, // For empty lines
