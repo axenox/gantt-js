@@ -60,7 +60,7 @@ export default class Bar {
         //this.task._end = new Date(this.task.end);
       
         // attention, this.task.end is nullable!
-        this.task.orig_end = new Date(this.task.end); //TODO SR: Date without hours fix. Test it.
+        this.task.orig_end = this.task.end ? new Date(this.task.end) : null; //TODO SR: Date without hours fix. Test it.
         // <<< SR: Bar Aggregation ---------------------------------------------
         this.compute_x();
         this.compute_y();
@@ -701,7 +701,7 @@ export default class Bar {
     compute_duration() {
         let actual_duration_in_days = 0,
             duration_in_days = 0;
-        let endDate = isNaN(this.task.orig_end.getTime()) ? this.task._end : this.task.orig_end;
+        let endDate = this.task.orig_end ?? this.task._end;
         
         for (
             let d = new Date(this.task._start);
