@@ -156,29 +156,62 @@ export default class Gantt {
     setup_tasks(tasks) {
         this.tasks = tasks
             .map((task, i) => {
-                if (!task.start) { //TODO SR: INFO: In the new version, an error is thrown without a start/end date and without a duration.
+              // >>> SR: New missing start / end date treatment  ---------------
+                /*if (!task.start) {
                     console.error(
                         `task "${task.id}" doesn't have a start date`,
                     );
                     return false;
-                }
-
-                task._start = date_utils.parse(task.start);
-                if (task.end === undefined && task.duration !== undefined) {
+                }*/
+              
+                if (task.start !== undefined) {
+                  task._start = date_utils.parse(task.start);
+                  if (task.end === undefined && task.duration !== undefined) {
                     task.end = task._start;
                     let durations = task.duration.split(' ');
 
                     durations.forEach((tmpDuration) => {
-                        let { duration, scale } =
-                            date_utils.parse_duration(tmpDuration);
-                        task.end = date_utils.add(task.end, duration, scale);
+                      let { duration, scale } =
+                          date_utils.parse_duration(tmpDuration);
+                      task.end = date_utils.add(task.end, duration, scale);
                     });
+
+                    if (!task.end) {
+                      console.error(`task "${task.id}" doesn't have an end date`);
+                      return false;
+                    }
+                    task._end = date_utils.parse(task.end);
+                  }
                 }
-                if (!task.end) {
-                    console.error(`task "${task.id}" doesn't have an end date`);
-                    return false;
+                
+                if (task.start && task.end) {
+                  task._start = date_utils.parse(task.start);
+                  task._end = date_utils.parse(task.end);
                 }
-                task._end = date_utils.parse(task.end);
+
+                // invalid dates
+                if (!task.start && !task.end) {
+                  const today = date_utils.today();
+                  task._start = today;
+                  task._end = date_utils.add(today, (this.options.default_duration - 1), 'day');
+                }
+  
+                if (!task.start && task.end) {
+                  task._end = date_utils.parse(task.end);
+                  task._start = date_utils.add(task._end, - (this.options.default_duration - 1), 'day'); // -1
+                }
+  
+                if (task.start && !task.end && task.duration === undefined) {
+                  task._start = date_utils.parse(task.start);
+                  task._end = date_utils.add(task._start, (this.options.default_duration - 1), 'day'); // 1
+                }
+                
+                // invalid flag
+                /* 
+                if (!task.start || !task.end) {
+                  task.invalid = true;
+                }*/
+                // <<< SR: New missing start / end date treatment  -------------
 
                 let diff = date_utils.diff(task._end, task._start, 'year');
                 if (diff < 0) {

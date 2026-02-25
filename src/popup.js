@@ -106,31 +106,11 @@ export default class Popup {
           swatch.style.backgroundColor = String(m.color);
         }
         li.appendChild(swatch);
-  
-        //TODO SR INFO: Old logic with missing Start/End-Dates:
         
-        /*          // Getting the original task to know real start/end
-                  const originalTask = this.gantt.get_task ? this.gantt.get_task(m.id) : null;
-                  const hasRealStart = !!(originalTask && originalTask.start);
-                  const hasRealEnd = !!(originalTask && originalTask.end);
-        
-                  let labelText = m.name;
-                  let rangeText = '';
-        
-                  if (hasRealStart || hasRealEnd) {
-                    const start_date = fmt(m._start);
-                    const endAdj = adjustEnd(m._end);
-                    const end_date = fmt(endAdj);
-        
-                    if (hasRealStart && hasRealEnd) {
-                      rangeText = ` (${start_date} - ${end_date})`;
-                    } else if (hasRealStart && !hasRealEnd) {
-                      rangeText = ` (${start_date} - ... )`;
-                    } else if (hasRealEnd && !hasRealStart) {
-                      rangeText = ` ( ... - ${end_date})`;
-                    }
-                  }*/
-
+        // Getting the original task to know real start/end
+        const originalTask = this.gantt.get_task ? this.gantt.get_task(m.id) : null;
+        const hasRealStart = !!(originalTask && originalTask.start);
+        const hasRealEnd = !!(originalTask && originalTask.end);
 
         let ogTask = this.gantt.get_task ? this.gantt.get_task(m.id) : null;
         this.compute_duration(ogTask);
@@ -152,12 +132,20 @@ export default class Popup {
             'MMM dd',
             this.gantt.options.language,
         );
-  
-        if (m._start && m._end) {
-          rangeText = 
-              `${start_date} - ${end_date} (${ogTask.actual_duration} Tage${ogTask.ignored_duration ? ' + ' + ogTask.ignored_duration + ' Ausgeschlossen' : ''})`;
+        
+        if (hasRealStart || hasRealEnd) {
+          if (hasRealStart && hasRealEnd) {
+            rangeText =
+                `${start_date} - ${end_date} (${ogTask.actual_duration} Tage${ogTask.ignored_duration ? ' + ' + ogTask.ignored_duration + ' Ausgeschlossen' : ''})`;
+          } else if (hasRealStart && !hasRealEnd) {
+            rangeText =
+                `${start_date} - ... `;
+          } else if (hasRealEnd && !hasRealStart) {
+            rangeText =
+                `... - ${end_date}`;
+          }
         }
-  
+        
         const textSpan = document.createElement('span');
         textSpan.textContent = labelText + ' [ ' + rangeText + ' ]';
         li.appendChild(textSpan);

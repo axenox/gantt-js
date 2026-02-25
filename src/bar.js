@@ -58,6 +58,8 @@ export default class Bar {
         // >>> SR: Bar Aggregation ---------------------------------------------
         //this.task._start = new Date(this.task.start);
         //this.task._end = new Date(this.task.end);
+      
+        // attention, this.task.end is nullable!
         this.task.orig_end = new Date(this.task.end); //TODO SR: Date without hours fix. Test it.
         // <<< SR: Bar Aggregation ---------------------------------------------
         this.compute_x();
@@ -348,7 +350,10 @@ export default class Bar {
     }
 
     bind() {
-        if (this.invalid) return;
+      // >>> SR: Bar Aggregation -----------------------------------------------
+        // the invalid case is treated inside setup_click_event()
+        //if (this.invalid) return;
+      // <<< SR: Bar Aggregation -----------------------------------------------
         this.setup_click_event();
     }
 
@@ -391,11 +396,13 @@ export default class Bar {
                     });
                 // >>> SR: Bar Aggregation -------------------------------------
                 //New: Added "CSS.escape" to escape special characters in task IDs
-                this.gantt.$container
+                if(!this.invalid) {
+                  this.gantt.$container
                     .querySelector(`.highlight-${CSS.escape(task_id)}`)
                     .classList.remove('hide');
+                }
                 // <<< SR: Bar Aggregation -------------------------------------
-            }, 200);
+          }, 200);
         });
         $.on(this.group, 'mouseleave', () => {
             clearTimeout(timeout);
@@ -403,10 +410,12 @@ export default class Bar {
                 this.gantt.popup?.hide?.();
             
             // >>> SR: Bar Aggregation -----------------------------------------
+          if(!this.invalid) {
             //New: Added "CSS.escape" to escape special characters in task IDs
             this.gantt.$container
                 .querySelector(`.highlight-${CSS.escape(task_id)}`)
                 .classList.add('hide');
+          }
             // <<< SR: Bar Aggregation -----------------------------------------
         });
 
@@ -450,6 +459,10 @@ export default class Bar {
     }
 
     update_bar_position({ x = null, width = null }) {
+        // >>> SR: Bar Aggregation ---------------------------------------------
+        if (this.invalid) return;
+        // <<< SR: Bar Aggregation ---------------------------------------------
+      
         const bar = this.$bar;
 
         if (x) {
@@ -579,6 +592,10 @@ export default class Bar {
     }
 
     compute_progress() {
+        // >>> SR: Bar Aggregation ---------------------------------------------
+        if (this.invalid) return;
+        // <<< SR: Bar Aggregation ---------------------------------------------
+      
         this.progress_width = this.$bar_progress.getWidth();
         this.x = this.$bar_progress.getBBox().x;
         const progress_area = this.x + this.progress_width;
@@ -684,11 +701,13 @@ export default class Bar {
     compute_duration() {
         let actual_duration_in_days = 0,
             duration_in_days = 0;
+        let endDate = isNaN(this.task.orig_end.getTime()) ? this.task._end : this.task.orig_end;
+        
         for (
             let d = new Date(this.task._start);
             // >>> SR: Bar Aggregation -----------------------------------------
-            //d < this.task._end; //TODO SR: Date without hours fix. Test it.
-            d < this.task.orig_end;
+            //d < this.task._end;
+            d < endDate;
             // <<< SR: Bar Aggregation -----------------------------------------
             d.setDate(d.getDate() + 1)
         ) {

@@ -157,9 +157,31 @@ const DEFAULT_OPTIONS = { //TODO SR Info: This is the old "default_options"
             ctx.chart.options.language,
         );
 
-        ctx.set_details(
+        // >>> SR: Bar Aggregation ---------------------------------------------
+        // special treatment for tasks without start or end-date and duration
+        const hasRealStart = !!(ctx.task.start);
+        const hasRealEnd = (!!(ctx.task.end) || ctx.task.duration !== undefined);
+
+        if (hasRealStart || hasRealEnd) {
+          if (hasRealStart && hasRealEnd) {
+            ctx.set_details(
+                `${start_date} - ${end_date} (${ctx.task.actual_duration} days${ctx.task.ignored_duration ? ' + ' + ctx.task.ignored_duration + ' excluded' : ''})<br/>Progress: ${Math.floor(ctx.task.progress * 100) / 100}%`,
+            );
+          } else if (hasRealStart && !hasRealEnd) {
+            ctx.set_details(
+                `${start_date} - ... <br/>Progress: ${Math.floor(ctx.task.progress * 100) / 100}%`,
+            );
+          } else if (hasRealEnd && !hasRealStart) {
+            ctx.set_details(
+                `... - ${end_date} <br/>Progress: ${Math.floor(ctx.task.progress * 100) / 100}%`,
+            );
+          }
+        }
+
+/*        ctx.set_details(
             `${start_date} - ${end_date} (${ctx.task.actual_duration} days${ctx.task.ignored_duration ? ' + ' + ctx.task.ignored_duration + ' excluded' : ''})<br/>Progress: ${Math.floor(ctx.task.progress * 100) / 100}%`,
-        );
+        );*/
+      // <<< SR: Bar Aggregation -----------------------------------------------
     },
     popup_on: 'click',
     readonly_progress: false,
@@ -180,6 +202,7 @@ const DEFAULT_OPTIONS = { //TODO SR Info: This is the old "default_options"
     row_height: null, //is calculated automatically, if set to null. //TODO SR: Check whether this should also depend on the view_mode.
     bar_inner_padding: 6, // Total vertical padding within the row for each task
     row_keys: null, // For empty lines
+    default_duration: 2, // Default duration in days for tasks without start / end date and duration
     // <<< SR: Bar Aggregation -------------------------------------------------
 };
 
