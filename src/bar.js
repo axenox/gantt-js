@@ -135,11 +135,15 @@ export default class Bar {
         // <<< SR: Bar Aggregation ---------------------------------------------
         
         animateSVG(this.$bar, 'width', 0, this.width);
+        
+        if (this.invalid) {
+            this.$bar.classList.add('bar-invalid');
+        }
 
         // >>> SR: bar invalid overlay -----------------------------------------
-        if (this.invalid || this.task.dateIncomplete) {
-            this.$bar.classList.add('bar-invalid');
-            this.draw_invalid_overlay();
+        if (this.task.dateIncomplete) {
+          this.$bar.classList.add('bar-date-incomplete');
+          this.draw_invalid_overlay();
         }
         // <<< SR: bar invalid overlay -----------------------------------------
     }
@@ -1033,8 +1037,8 @@ export default class Bar {
       })
   
       line.setAttribute('stroke', '#8D99A6');
-      line.setAttribute('stroke-width', '4');
-      line.setAttribute('opacity', '0.35');
+      line.setAttribute('stroke-width', '3');
+      line.setAttribute('opacity', '0.75');
     }
 
   /**
@@ -1072,10 +1076,10 @@ export default class Bar {
    * @param width
    */
   update_invalid_overlay_position(x, width) {
-      if (this.$bar_invalid_overlay) {
-        if (x) this.update_attr(this.$bar_invalid_overlay, 'x', x);
-        if (width > 0) this.update_attr(this.$bar_invalid_overlay, 'width', width);
-      }
+      if (!this.$bar_invalid_overlay) return;
+        
+      if (x) this.update_attr(this.$bar_invalid_overlay, 'x', x);
+      if (width > 0) this.update_attr(this.$bar_invalid_overlay, 'width', width);
     }
     // <<< SR: Bar Aggregation -------------------------------------------------
 }

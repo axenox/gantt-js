@@ -639,26 +639,28 @@ export default class Gantt {
         }
         if (this.options.lines === 'horizontal') return;
 
-        // >>> SR: Bar Aggregation ---------------------------------------------
-        if (this.config.view_mode.thick_line_color) {
-          this.$container.style.setProperty("--g-tick-color-thick", String(this.config.view_mode.thick_line_color));
-        }
-        // <<< SR: Bar Aggregation ---------------------------------------------
-
         for (let date of this.dates) {
             let tick_class = 'tick';
-            if (
-                this.config.view_mode.thick_line &&
-                this.config.view_mode.thick_line(date)
-            ) {
+
+            // >>> SR: Thick line color ----------------------------------------
+            const isThick = this.config.view_mode.thick_line && this.config.view_mode.thick_line(date);
+            
+            if (isThick) {
                 tick_class += ' thick';
             }
+          
+            const attrs = {
+              d: `M ${tick_x} ${tick_y} v ${tick_height}`,
+              class: tick_class,
+              append_to: this.layers.grid,
+            }
 
-            createSVG('path', {
-                d: `M ${tick_x} ${tick_y} v ${tick_height}`,
-                class: tick_class,
-                append_to: this.layers.grid,
-            });
+            if (isThick && this.config.view_mode.thick_line_color) {
+              attrs.style = `stroke: ${this.config.view_mode.thick_line_color};`;
+            }
+            
+            createSVG('path', attrs);
+            // <<< SR: Thick line color ----------------------------------------
 
             if (this.view_is('month')) { //TODO SR: Check this special month / year logic for thick lines.
                 tick_x +=
