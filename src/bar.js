@@ -136,9 +136,12 @@ export default class Bar {
         
         animateSVG(this.$bar, 'width', 0, this.width);
 
-        if (this.invalid) {
+        // >>> SR: bar invalid overlay -----------------------------------------
+        if (this.invalid || this.task.dateIncomplete) {
             this.$bar.classList.add('bar-invalid');
+            this.draw_invalid_overlay();
         }
+        // <<< SR: bar invalid overlay -----------------------------------------
     }
 
     draw_expected_progress_bar() {
@@ -496,6 +499,10 @@ export default class Bar {
 
         this.update_progressbar_position();
         this.update_arrow_position();
+
+        // >>> SR: bar invalid overlay -----------------------------------------
+        this.update_invalid_overlay_position(x, width);
+        // <<< SR: bar invalid overlay -----------------------------------------
     }
     
     //TODO SR: Fix image scroll position.
@@ -993,6 +1000,82 @@ export default class Bar {
     
     rowTop(rowIndex) {
       return this.gantt._rowMeta[rowIndex]?.top || 0;
+    }
+
+  /**
+   * Defines an SVG pattern for hatching, which is used to indicate invalid bars.
+   * The pattern consists of diagonal lines and is added to the SVG defs. It is only defined once, even if multiple bars use it.
+   * The pattern can then be applied as a fill to an overlay rectangle on top of the bar to visually indicate invalidity.
+   */
+  define_svg_hatch_pattern() {
+      const svg = this.gantt.$svg;
+      if (!svg) return;
+  
+      let defs = svg.querySelector('defs');
+      if (!defs) defs = createSVG('defs', { append_to: svg });
+      
+      if (svg.querySelector('#hatchPattern')) return;
+  
+      const pattern = createSVG('pattern', {
+        id: 'hatchPattern',
+        patternUnits: 'userSpaceOnUse',
+        width: 12,
+        height: 12,
+        append_to: defs,
+      });
+      
+      pattern.setAttribute('patternTransform', 'rotate(45 4 4)');
+      
+      const line = createSVG('line', {
+        x1: 0, y1: 0,
+        x2: 0, y2: 12,
+        append_to: pattern,
+      })
+  
+      line.setAttribute('stroke', '#8D99A6');
+      line.setAttribute('stroke-width', '4');
+      line.setAttribute('opacity', '0.35');
+    }
+
+  /**
+   * draws a diagonal hatch overlay on top of the bar to indicate that it is invalid. 
+   * It uses the defined "hatchPattern" SVG pattern as a fill for a rectangle that covers the entire bar area. 
+   * The overlay is non-interactive, allowing clicks and drags to pass through to the bar below.
+   */
+  draw_invalid_overlay() {
+      this.define_svg_hatch_pattern();
+      
+      if (this.$bar_invalid_overlay) {
+        this.$bar_invalid_overlay.remove();
+        this.$bar_invalid_overlay = null;
+      }
+
+      this.$bar_invalid_overlay = createSVG('rect', {
+        x: this.x,
+        y: this.y,
+        width: this.width,
+        height: this.height,
+        rx: this.corner_radius,
+        ry: this.corner_radius,
+        class: 'bar-invalid-overlay',
+        append_to: this.bar_group,
+      });
+
+      this.$bar_invalid_overlay.setAttribute('fill', 'url(#hatchPattern)');
+      this.$bar_invalid_overlay.setAttribute('pointer-events', 'none');
+    }
+
+  /**
+   * updates the position and size of the invalid overlay to match the bar's current position and size.
+   * 
+   * @param x
+   * @param width
+   */
+  update_invalid_overlay_position(x, width) {
+      if (this.$bar_invalid_overlay) {
+        if (x) this.update_attr(this.$bar_invalid_overlay, 'x', x);
+        if (width > 0) this.update_attr(this.$bar_invalid_overlay, 'width', width);
+      }
     }
     // <<< SR: Bar Aggregation -------------------------------------------------
 }

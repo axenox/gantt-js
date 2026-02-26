@@ -206,11 +206,9 @@ export default class Gantt {
                   task._end = date_utils.add(task._start, (this.options.default_duration - 1), 'day'); // 1
                 }
                 
-                // invalid flag
-                /* 
                 if (!task.start || !task.end) {
-                  task.invalid = true;
-                }*/
+                  task.dateIncomplete = true;
+                }
                 // <<< SR: New missing start / end date treatment  -------------
 
                 let diff = date_utils.diff(task._end, task._start, 'year');
