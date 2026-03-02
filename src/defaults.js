@@ -156,6 +156,7 @@ const DEFAULT_OPTIONS = { //TODO SR Info: This is the old "default_options"
             'MMM dd',
             ctx.chart.options.language,
         );
+        const word = ctx.task.actual_duration === 1 ? 'day' : 'days';
 
         // >>> SR: Bar Aggregation ---------------------------------------------
         // special treatment for tasks without start or end-date and duration
@@ -165,7 +166,7 @@ const DEFAULT_OPTIONS = { //TODO SR Info: This is the old "default_options"
         if (hasRealStart || hasRealEnd) {
           if (hasRealStart && hasRealEnd) {
             ctx.set_details(
-                `${start_date} - ${end_date} (${ctx.task.actual_duration} days${ctx.task.ignored_duration ? ' + ' + ctx.task.ignored_duration + ' excluded' : ''})<br/>Progress: ${Math.floor(ctx.task.progress * 100) / 100}%`,
+                `${start_date} - ${end_date} (${ctx.task.actual_duration} ${word}${ctx.task.ignored_duration ? ' + ' + ctx.task.ignored_duration + ' excluded' : ''})<br/>Progress: ${Math.floor(ctx.task.progress * 100) / 100}%`,
             );
           } else if (hasRealStart && !hasRealEnd) {
             ctx.set_details(
@@ -187,6 +188,8 @@ const DEFAULT_OPTIONS = { //TODO SR Info: This is the old "default_options"
     readonly_progress: false,
     readonly_dates: false,
     readonly: false,
+    hover_on_date: false, //frappe new
+    fixed_duration: false, //frappe new
     scroll_to: 'today',
     show_expected_progress: false,
     today_button: true,

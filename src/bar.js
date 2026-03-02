@@ -56,8 +56,8 @@ export default class Bar {
         this.image_size = this.height - 5;
         
         // >>> SR: Bar Aggregation ---------------------------------------------
-        //this.task._start = new Date(this.task.start);
-        //this.task._end = new Date(this.task.end);
+        //if (!this.task._start) this.task._start = new Date(this.task.start);
+        //if (!this.task._end) this.task._end = new Date(this.task.end);
       
         // attention, this.task.end is nullable!
         this.task.orig_end = this.task.end ? new Date(this.task.end) : null; //TODO SR: Date without hours fix. Test it.
@@ -311,7 +311,10 @@ export default class Bar {
         const bar = this.$bar;
         const handle_width = 3;
         this.handles = [];
-        if (!this.gantt.options.readonly_dates) {
+        if (
+            !this.gantt.options.readonly_dates &&
+            !this.gantt.options.fixed_duration
+        ) {
             this.handles.push(
                 createSVG('rect', {
                     x: bar.getEndX() - handle_width / 2,
