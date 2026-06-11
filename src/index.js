@@ -71,6 +71,11 @@ export default class Gantt {
 
         // >>> SR: Bar Aggregation ---------------------------------------------
         this._initialScroll = true;
+        //TODO SR: Why is the infinite padding is set to false here?
+      
+        // >>> SR: Date calculation Fix ----------------------------------------
+        this._extending_infinite_padding = false;
+        // <<< SR: Date calculation Fix ----------------------------------------
         // <<< SR: Bar Aggregation ---------------------------------------------
     }
 
@@ -309,19 +314,37 @@ export default class Gantt {
         if (typeof mode === 'string') {
             mode = this.options.view_modes.find((d) => d.name === mode);
         }
-        let old_pos, old_scroll_op;
+        let old_pos, old_scroll_op, anchor_date;
         if (maintain_pos) {
             old_pos = this.$container.scrollLeft;
             old_scroll_op = this.options.scroll_to;
             this.options.scroll_to = null;
+
+          // >>> SR: Date calculation Fix -------------------------------------------
+            anchor_date = date_utils.add(
+                this.gantt_start,
+                (old_pos / this.config.column_width) * this.config.step,
+                this.config.unit,
+            );
+          // <<< SR: Date calculation Fix -------------------------------------------
         }
         this.options.view_mode = mode.name;
         this.config.view_mode = mode;
         this.update_view_scale(mode);
-        this.setup_dates(maintain_pos);
+        // >>> SR: Date calculation Fix ---------------------------------------------
+        // Always recompute date boundaries for the selected view.
+        // Scroll position is preserved separately below when maintain_pos is true.
+        this.setup_dates(false);
+        // <<< SR: Date calculation Fix ---------------------------------------------
         this.render();
         if (maintain_pos) {
-            this.$container.scrollLeft = old_pos;
+          // >>> SR: Date calculation Fix -------------------------------------------
+            if (anchor_date) {
+                this.set_scroll_position(anchor_date);
+            } else {
+                this.$container.scrollLeft = old_pos;
+            }
+          // <<< SR: Date calculation Fix -------------------------------------------
             this.options.scroll_to = old_scroll_op;
         }
         this.trigger_event('view_change', [mode]);
@@ -368,39 +391,67 @@ export default class Gantt {
         gantt_end = date_utils.start_of(gantt_end, this.config.unit);
 
         if (!refresh) {
-            if (!this.options.infinite_padding) {
-                if (typeof this.config.view_mode.padding === 'string')
-                    this.config.view_mode.padding = [
-                        this.config.view_mode.padding,
-                        this.config.view_mode.padding,
-                    ];
+            // TODO SR: Old code. Clean after test.
+/*          if (!this.options.infinite_padding) {
+            if (typeof this.config.view_mode.padding === 'string')
+              this.config.view_mode.padding = [
+                this.config.view_mode.padding,
+                this.config.view_mode.padding,
+              ];
 
-                let [padding_start, padding_end] =
-                    this.config.view_mode.padding.map(
-                        date_utils.parse_duration,
-                    );
-                this.gantt_start = date_utils.add(
-                    gantt_start,
-                    -padding_start.duration,
-                    padding_start.scale,
+            let [padding_start, padding_end] =
+                this.config.view_mode.padding.map(
+                    date_utils.parse_duration,
                 );
-                this.gantt_end = date_utils.add(
-                    gantt_end,
-                    padding_end.duration,
-                    padding_end.scale,
-                );
-            } else {
-                this.gantt_start = date_utils.add(
-                    gantt_start,
-                    -this.config.extend_by_units * 3,
-                    this.config.unit,
-                );
-                this.gantt_end = date_utils.add(
-                    gantt_end,
-                    this.config.extend_by_units * 3,
-                    this.config.unit,
-                );
+            this.gantt_start = date_utils.add(
+                gantt_start,
+                -padding_start.duration,
+                padding_start.scale,
+            );
+            this.gantt_end = date_utils.add(
+                gantt_end,
+                padding_end.duration,
+                padding_end.scale,
+            );
+          } else {
+            this.gantt_start = date_utils.add(
+                gantt_start,
+                -this.config.extend_by_units * 3,
+                this.config.unit,
+            );
+            this.gantt_end = date_utils.add(
+                gantt_end,
+                this.config.extend_by_units * 3,
+                this.config.unit,
+            );
+          }*/
+          // >>> SR: Date calculation Fix -------------------------------------------
+            const view_padding = Array.isArray(this.config.view_mode.padding)
+                ? this.config.view_mode.padding
+                : [
+                      this.config.view_mode.padding,
+                      this.config.view_mode.padding,
+                  ];
+            const [padding_start, padding_end] = view_padding.map(
+                date_utils.parse_duration,
+            );
+
+            this.gantt_start = date_utils.add(
+                gantt_start,
+                -padding_start.duration,
+                padding_start.scale,
+            );
+            this.gantt_end = date_utils.add(
+                gantt_end,
+                padding_end.duration,
+                padding_end.scale,
+            );
+
+            if (this.should_align_to_week_start()) {
+                // Ensure week-based views still start on the configured week start after padding/extension.
+                this.gantt_start = this.align_to_week_start(this.gantt_start);
             }
+          // <<< SR: BDate calculation Fix -------------------------------------------
         }
         this.config.date_format =
             this.config.view_mode.date_format || this.options.date_format;
@@ -640,6 +691,9 @@ export default class Gantt {
         if (this.options.lines === 'horizontal') return;
 
         for (let date of this.dates) {
+            // >>> SR: Date calculation Fix ------------------------------------
+            tick_x = this.get_position_by_date(date);
+            // <<< SR: Date calculation Fix ------------------------------------
             let tick_class = 'tick';
 
             // >>> SR: Thick line color ----------------------------------------
@@ -662,19 +716,6 @@ export default class Gantt {
             createSVG('path', attrs);
             // <<< SR: Thick line color ----------------------------------------
 
-            if (this.view_is('month')) { //TODO SR: Check this special month / year logic for thick lines.
-                tick_x +=
-                    (date_utils.get_days_in_month(date) *
-                        this.config.column_width) /
-                    30;
-            } else if (this.view_is('year')) {
-                tick_x +=
-                    (date_utils.get_days_in_year(date) *
-                        this.config.column_width) /
-                    365;
-            } else {
-                tick_x += this.config.column_width;
-            }
         }
     }
 
@@ -726,14 +767,9 @@ export default class Gantt {
                 )
                     continue;
                 if (check_highlight(d) || (extra_func && extra_func(d))) {
-                    const x =
-                        (date_utils.diff(
-                            d,
-                            this.gantt_start,
-                            this.config.unit,
-                        ) /
-                            this.config.step) *
-                        this.config.column_width;
+                  // >>> SR: Date calculation Fix ------------------------------
+                    const x = this.get_position_by_date(d);
+                  // >>> SR: Date calculation Fix ------------------------------
                     const height = this.grid_height - this.config.header_height;
                     // >>> SR: Bar Aggregation ---------------------------------
                     const d_formatted = date_utils
@@ -778,16 +814,10 @@ export default class Gantt {
 
         const [_, el] = res;
         el.classList.add('current-date-highlight');
-
-        const diff_in_units = date_utils.diff(
-            new Date(),
-            this.gantt_start,
-            this.config.unit,
-        );
-
-        const left =
-            (diff_in_units / this.config.step) * this.config.column_width;
-
+        // >>> SR: Date calculation Fix --------------------------------------------
+        const left = this.get_position_by_date(new Date());
+        // <<< SR: Date calculation Fix --------------------------------------------
+        
         this.$current_highlight = this.create_el({
             top: this.config.header_height,
             left,
@@ -836,15 +866,13 @@ export default class Gantt {
                     !this.config.ignored_function(d))
             )
                 continue;
-            let diff =
-                date_utils.convert_scales(
-                    date_utils.diff(d, this.gantt_start) + 'd',
-                    this.config.unit,
-                ) / this.config.step;
+            // >>> SR: Date calculation Fix ------------------------------------
+            const x = this.get_position_by_date(d);
 
-            this.config.ignored_positions.push(diff * this.config.column_width);
+            this.config.ignored_positions.push(x);
+            // >>> SR: Date calculation Fix ------------------------------------
             createSVG('rect', {
-                x: diff * this.config.column_width,
+                x,
                 y: this.config.header_height,
                 width: this.config.column_width,
                 height: height,
@@ -1065,14 +1093,10 @@ export default class Gantt {
 
         // Weird bug where infinite padding results in one day offset in scroll
         // Related to header-body displacement
-        const units_since_first_task = date_utils.diff(
-            date,
-            this.gantt_start,
-            this.config.unit,
-        );
-        const scroll_pos =
-            (units_since_first_task / this.config.step) *
-            this.config.column_width;
+        // >>> SR: Date calculation Fix ---------------------------------------------
+        //State in PowerUI Version: solved?
+        const scroll_pos = this.get_position_by_date(date);
+        // <<< SR: Date calculation Fix ---------------------------------------------
 
         this.$container.scrollTo({
             left: scroll_pos - this.config.column_width / 6,
@@ -1153,16 +1177,18 @@ export default class Gantt {
             );
             c++;
         }
+        // >>> SR: Date calculation Fix ------------------------------------
         return [
-            new Date(
+            date_utils.parse(
                 date_utils.format(
                     current,
                     this.config.date_format,
                     this.options.language,
-                ) + ' ',
+                ),
             ),
             el,
         ];
+        // <<< SR: Date calculation Fix ------------------------------------
     }
 
     bind_grid_click() {
@@ -1219,7 +1245,9 @@ export default class Gantt {
     bind_bar_events() {
         let is_dragging = false;
         let x_on_start = 0;
-        let x_on_scroll_start = 0;
+        // >>> SR: Date calculation Fix ---------------------------------------------
+        let x_on_scroll_start = this.$container.scrollLeft;
+        // >>> SR: Date calculation Fix ---------------------------------------------
         let is_resizing_left = false;
         let is_resizing_right = false;
         let parent_bar_id = null;
@@ -1281,47 +1309,65 @@ export default class Gantt {
                 $bar.finaldx = 0;
             });
         });
+          
+          //TODO SR: Old Code. Test and then remove.
+/*        if (this.options.infinite_padding) {
+          let extended = false;
+          $.on(this.$container, 'mousewheel', (e) => {
+            let trigger = this.$container.scrollWidth / 2;
+            if (!extended && e.currentTarget.scrollLeft <= trigger) {
+              let old_scroll_left = e.currentTarget.scrollLeft;
+              extended = true;
+  
+              this.gantt_start = date_utils.add(
+                  this.gantt_start,
+                  -this.config.extend_by_units,
+                  this.config.unit,
+              );
+              this.setup_date_values();
+              this.render();
+              e.currentTarget.scrollLeft =
+                  old_scroll_left +
+                  this.config.column_width * this.config.extend_by_units;
+              setTimeout(() => (extended = false), 300);
+            }
+  
+            if (
+                !extended &&
+                e.currentTarget.scrollWidth -
+                (e.currentTarget.scrollLeft +
+                    e.currentTarget.clientWidth) <=
+                trigger
+            ) {
+              let old_scroll_left = e.currentTarget.scrollLeft;
+              extended = true;
+              this.gantt_end = date_utils.add(
+                  this.gantt_end,
+                  this.config.extend_by_units,
+                  this.config.unit,
+              );
+              this.setup_date_values();
+              this.render();
+              e.currentTarget.scrollLeft = old_scroll_left;
+              setTimeout(() => (extended = false), 300);
+            }
+          });
+        }*/
 
         if (this.options.infinite_padding) {
-            let extended = false;
-            $.on(this.$container, 'mousewheel', (e) => {
-                let trigger = this.$container.scrollWidth / 2;
-                if (!extended && e.currentTarget.scrollLeft <= trigger) {
-                    let old_scroll_left = e.currentTarget.scrollLeft;
-                    extended = true;
+          // >>> SR: Date calculation Fix -------------------------------------------
+            this.$container.addEventListener('wheel', (e) => {
+                const abs_delta_x = Math.abs(e.deltaX || 0);
+                const abs_delta_y = Math.abs(e.deltaY || 0);
+                const horizontal_intent =
+                    abs_delta_x > 0 && abs_delta_x >= abs_delta_y;
+                const shift_horizontal = e.shiftKey && abs_delta_y > 0;
 
-                    this.gantt_start = date_utils.add(
-                        this.gantt_start,
-                        -this.config.extend_by_units,
-                        this.config.unit,
-                    );
-                    this.setup_date_values();
-                    this.render();
-                    e.currentTarget.scrollLeft =
-                        old_scroll_left +
-                        this.config.column_width * this.config.extend_by_units;
-                    setTimeout(() => (extended = false), 300);
-                }
+                // Ignore pure vertical wheel gestures to keep weekly headers stable.
+                if (!horizontal_intent && !shift_horizontal) return;
 
-                if (
-                    !extended &&
-                    e.currentTarget.scrollWidth -
-                        (e.currentTarget.scrollLeft +
-                            e.currentTarget.clientWidth) <=
-                        trigger
-                ) {
-                    let old_scroll_left = e.currentTarget.scrollLeft;
-                    extended = true;
-                    this.gantt_end = date_utils.add(
-                        this.gantt_end,
-                        this.config.extend_by_units,
-                        this.config.unit,
-                    );
-                    this.setup_date_values();
-                    this.render();
-                    e.currentTarget.scrollLeft = old_scroll_left;
-                    setTimeout(() => (extended = false), 300);
-                }
+                this.maybe_extend_infinite_padding(e.currentTarget);
+            // <<< SR: Date calculation Fix ---------------------------------------------
             });
         }
 
@@ -1330,15 +1376,24 @@ export default class Gantt {
             const ids = this.bars.map(({ group }) =>
                 group.getAttribute('data-id'),
             );
-            let dx;
-            if (x_on_scroll_start) {
-                dx = e.currentTarget.scrollLeft - x_on_scroll_start;
-            }
+            // >>> SR: Date calculation Fix -----------------------------------------
+            const current_scroll_left = e.currentTarget.scrollLeft;
+            const horizontal_scroll_changed =
+                current_scroll_left !== x_on_scroll_start;
+            // <<< SR: Date calculation Fix -----------------------------------------
 
+            let dx;
+            // >>> SR: Date calculation Fix -----------------------------------------
+            if (horizontal_scroll_changed) {
+                dx = current_scroll_left - x_on_scroll_start;
+            }
+            // >>> SR: Bar Aggregation -----------------------------------------
             // Calculate current scroll position's upper text
             this.current_date = date_utils.add(
                 this.gantt_start,
-                (e.currentTarget.scrollLeft / this.config.column_width) *
+                  // >>> SR: Date calculation Fix -----------------------------------
+                    (current_scroll_left / this.config.column_width) *
+                  // >>> SR: Date calculation Fix -----------------------------------
                     this.config.step,
                 this.config.unit,
             );
@@ -1355,7 +1410,9 @@ export default class Gantt {
             // Recalculate for smoother experience
             this.current_date = date_utils.add(
                 this.gantt_start,
-                ((e.currentTarget.scrollLeft + $el.clientWidth) /
+                // >>> SR: Date calculation Fix -------------------------------------
+                ((current_scroll_left + $el.clientWidth) / 
+                    // <<< SR: Date calculation Fix ---------------------------------
                     this.config.column_width) *
                     this.config.step,
                 this.config.unit,
@@ -1376,8 +1433,9 @@ export default class Gantt {
                 $el.classList.add('current-upper');
                 this.$current = $el;
             }
-
-            x_on_scroll_start = e.currentTarget.scrollLeft;
+            // >>> SR: Date calculation Fix -----------------------------------------
+            x_on_scroll_start = current_scroll_left;
+            // <<< SR: Date calculation Fix -----------------------------------------
             let [min_start, max_start, max_end] =
                 this.get_start_end_positions();
 
@@ -1705,6 +1763,143 @@ export default class Gantt {
     }
     
   // >>> SR: Bar Aggregation ---------------------------------------------------
+  // >>> SR: Date calculation Fix ----------------------------------------------
+  get_infinite_padding_extend_units() {
+    const extend_units = Math.max(1, this.config.extend_by_units || 1);
+    const step_units = Math.max(1, this.config.step || 1);
+
+    // Keep day-based multi-day views (for example 7d calendar-week views)
+    // anchored to the same weekday when the timeline is extended.
+    if (this.config.unit === 'day' && step_units > 1) {
+      return Math.ceil(extend_units / step_units) * step_units;
+    }
+
+    return extend_units;
+  }
+
+  get_infinite_padding_extend_width(extend_units) {
+    return (extend_units / this.config.step) * this.config.column_width;
+  }
+
+  maybe_extend_infinite_padding(container = this.$container) {
+    if (!this.options.infinite_padding || this._extending_infinite_padding) {
+      return false;
+    }
+
+    const trigger = container.scrollWidth / 2;
+    const extend_units = this.get_infinite_padding_extend_units();
+
+    if (container.scrollLeft <= trigger) {
+      const old_scroll_left = container.scrollLeft;
+      this._extending_infinite_padding = true;
+
+      this.gantt_start = date_utils.add(
+          this.gantt_start,
+          -extend_units,
+          this.config.unit,
+      );
+      this.setup_date_values();
+      this.render();
+      container.scrollLeft =
+          old_scroll_left +
+          this.get_infinite_padding_extend_width(extend_units);
+      setTimeout(() => (this._extending_infinite_padding = false), 300);
+      return true;
+    }
+
+    if (
+        container.scrollWidth -
+        (container.scrollLeft + container.clientWidth) <=
+        trigger
+    ) {
+      const old_scroll_left = container.scrollLeft;
+      this._extending_infinite_padding = true;
+
+      this.gantt_end = date_utils.add(
+          this.gantt_end,
+          extend_units,
+          this.config.unit,
+      );
+      this.setup_date_values();
+      this.render();
+      container.scrollLeft = old_scroll_left;
+      setTimeout(() => (this._extending_infinite_padding = false), 300);
+      return true;
+    }
+
+    return false;
+  }
+  
+  should_align_to_week_start() {
+    return this.config.unit === 'day' && this.config.step % 7 === 0;
+  }
+
+  get_week_start_day() {
+    const start_of_week = String(this.options.start_of_week || 'monday')
+        .trim()
+        .toLowerCase();
+
+    if (start_of_week === 'sunday' || start_of_week === 'sonntag') {
+      return 0;
+    }
+
+    return 1;
+  }
+
+  align_to_week_start(date) {
+    const aligned = date_utils.clone(date);
+    const start_day = this.get_week_start_day();
+    const days_since_week_start = (aligned.getDay() - start_day + 7) % 7;
+    return date_utils.add(aligned, -days_since_week_start, 'day');
+  }
+
+  get_position_by_date(date) {
+    if (!date) return 0;
+
+    //TODO SR: New special calculation for the Month view:
+    // config.unit is parsed from the mode.step
+    // Attention! The "month" step option is still not correct. Fix it!
+    if (this.config.unit === 'month') {
+      const gantt_month_start = date_utils.start_of(this.gantt_start, 'month');
+      const date_month_start = date_utils.start_of(date, 'month');
+      const month_diff =
+          (date_month_start.getFullYear() - gantt_month_start.getFullYear()) * 12 +
+          (date_month_start.getMonth() - gantt_month_start.getMonth());
+      const day_offset =
+          date.getDate() -
+          1 +
+          date.getHours() / 24 +
+          date.getMinutes() / 1440 +
+          date.getSeconds() / 86400 +
+          date.getMilliseconds() / 86400000;
+
+      return (
+          month_diff + day_offset / date_utils.get_days_in_month(date)
+      ) * this.config.column_width;
+    }
+
+    if (this.config.unit === 'year') {
+      const gantt_year_start = date_utils.start_of(this.gantt_start, 'year');
+      const date_year_start = date_utils.start_of(date, 'year');
+      const year_diff =
+          date_year_start.getFullYear() - gantt_year_start.getFullYear();
+      const day_offset =
+          date_utils.diff(date, date_year_start, 'day') +
+          date.getHours() / 24 +
+          date.getMinutes() / 1440 +
+          date.getSeconds() / 86400 +
+          date.getMilliseconds() / 86400000;
+
+      return (
+          year_diff + day_offset / date_utils.get_days_in_year(date)
+      ) * this.config.column_width;
+    }
+    // This works as usual:
+    const diff_in_units = date_utils.diff(date, this.gantt_start, this.config.unit);
+    return (diff_in_units / this.config.step) * this.config.column_width;
+  }
+  // <<< SR: Date calculation Fix ----------------------------------------------
+  
   /**
    * It computes the row and lane allocation for all tasks.
    */
@@ -1860,7 +2055,9 @@ export default class Gantt {
             // aggregation build
             let minStart = membersArr[0]._start, maxEnd = membersArr[0]._end;
             for (const m of membersArr) {
-              const orig_end = new Date(m.end);
+              // >>> SR: Date calculation Fix ----------------------------------
+              const orig_end = m._end;
+              // <<< SR: Date calculation Fix ----------------------------------
               
               if (m._start < minStart) minStart = m._start;
               //if (m._end > maxEnd) maxEnd = m._end; 

@@ -123,9 +123,9 @@ export default class Popup {
             'MMM dd',
             this.gantt.options.language,
         );
-        
-        let org_end = new Date(m.end); //TODO SR: Date without hours fix. Test it.
-        
+        // >>> SR: Date calculation Fix ----------------------------------------
+        let org_end = m.orig_end ?? m._end; //TODO SR: Date without hours fix. Test it.
+        // <<< SR: Date calculation Fix ----------------------------------------
         const end_date = date_utils.format(
             //date_utils.add(m._end, -1, 'second'),
             date_utils.add(org_end, -1, 'second'), //TODO SR: Date without hours fix. Test it.
@@ -167,7 +167,9 @@ export default class Popup {
       if (task == null) return;
 
       //TODO SR: Date without hours fix. Test it.
-      task.orig_end = new Date(task.end);
+      // >>> SR: Date calculation Fix ------------------------------------
+      task.orig_end = task.orig_end ?? date_utils.clone(task._end);
+      // <<< SR: Date calculation Fix ------------------------------------
 
       let actual_duration_in_days = 0,
           duration_in_days = 0;

@@ -56,11 +56,15 @@ export default class Bar {
         this.image_size = this.height - 5;
         
         // >>> SR: Bar Aggregation ---------------------------------------------
-        //this.task._start = new Date(this.task.start);
-        //this.task._end = new Date(this.task.end);
+        //this.task._start = date_utils.parse(this.task.start);
+        //this.task._end = date_utils.parse(this.task.end);
       
         // attention, this.task.end is nullable!
-        this.task.orig_end = this.task.end ? new Date(this.task.end) : null; //TODO SR: Date without hours fix. Test it.
+        // >>> SR: Date calculation Fix ------------------------------------
+        // Use the already normalized local _end date. Native new Date('YYYY-MM-DD')
+        // parses as UTC and can create small offsets around DST changes.
+        this.task.orig_end = this.task.end ? date_utils.clone(this.task._end) : null; //TODO SR: Date without hours fix. Test it.
+        // <<< SR: Date calculation Fix ------------------------------------
         // <<< SR: Bar Aggregation ---------------------------------------------
         this.compute_x();
         this.compute_y();
@@ -69,8 +73,10 @@ export default class Bar {
         // >>> SR: Bar Aggregation ---------------------------------------------
         this.corner_radius = Math.min(this.gantt.options.bar_corner_radius, this.height / 2);
         // <<< SR: Bar Aggregation ---------------------------------------------
-        
-        this.width = this.gantt.config.column_width * this.duration;
+
+        // <<< SR: Date calculation Fix ---------------------------------------------
+        this.width = this.compute_width();
+        // >>> SR: Date calculation Fix ---------------------------------------------
         if (!this.task.progress || this.task.progress < 0)
             this.task.progress = 0;
         if (this.task.progress > 100) this.task.progress = 100;
@@ -187,15 +193,9 @@ export default class Bar {
         });
         if (this.task.color_progress)
             this.$bar_progress.style.fill = this.task.color_progress;
-        const x =
-            (date_utils.diff(
-                this.task._start,
-                this.gantt.gantt_start,
-                this.gantt.config.unit,
-            ) /
-                this.gantt.config.step) *
-            this.gantt.config.column_width;
-
+        // >>> SR: Date calculation Fix ---------------------------------------------
+        const x = this.gantt.get_position_by_date(this.task._start);
+        // <<< SR: Date calculation Fix ---------------------------------------------
         let $date_highlight = this.gantt.create_el({
             classes: `date-range-highlight hide highlight-${this.task.id}`,
             width: this.width,
@@ -636,38 +636,11 @@ export default class Bar {
     }
 
     compute_x() {
-        const { column_width } = this.gantt.config;
-        const task_start = this.task._start;
-        const gantt_start = this.gantt.gantt_start;
-
-        const diff =
-            date_utils.diff(task_start, gantt_start, this.gantt.config.unit) /
-            this.gantt.config.step;
-
-        let x = diff * column_width;
-
-        /* Since the column width is based on 30,
-        we count the month-difference, multiply it by 30 for a "pseudo-month"
-        and then add the days in the month, making sure the number does not exceed 29
-        so it is within the column */
-
-        // if (this.gantt.view_is('Month')) {
-        //     const diffDaysBasedOn30DayMonths =
-        //         date_utils.diff(task_start, gantt_start, 'month') * 30;
-        //     const dayInMonth = Math.min(
-        //         29,
-        //         date_utils.format(
-        //             task_start,
-        //             'DD',
-        //             this.gantt.options.language,
-        //         ),
-        //     );
-        //     const diff = diffDaysBasedOn30DayMonths + dayInMonth;
-
-        //     x = (diff * column_width) / 30;
-        // }
-
-        this.x = x;
+        // >>> SR: Date calculation Fix ---------------------------------------------
+        // The usual code was moved to the new function get_position_by_date()
+        // It threats the tasks with mode.step = "m" or "y" differently.
+        this.x = this.gantt.get_position_by_date(this.task._start);
+        // <<< SR: Date calculation Fix ---------------------------------------------
     }
 
     compute_y() {
@@ -908,6 +881,13 @@ export default class Bar {
     }
     
     // >>> SR: Bar Aggregation -------------------------------------------------
+    // >>> SR: Date calculation Fix --------------------------------------------
+    compute_width() {
+      const endDate = this.task.orig_end ?? this.task._end;
+      return Math.max(0, this.gantt.get_position_by_date(endDate) - this.x);
+    }
+    // <<< SR: Date calculation Fix --------------------------------------------
+  
     /**
      * Aggregation bar buildup
      *
