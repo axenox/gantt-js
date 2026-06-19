@@ -63,12 +63,39 @@ export default class Popup {
           );
         }
         // <<< SR: Bar Aggregation ---------------------------------------------
-
-        this.parent.style.left = x + 10 + 'px';
-        this.parent.style.top = y - 10 + 'px';
+        // >>> SR: Popup outside container fix ---------------------------------
+        this.position_inside_visible_container(x, y);
+        // <<< SR: Popup outside container fix ---------------------------------
         this.parent.classList.remove('hide');
     }
 
+    // <<< SR: Popup outside container fix -------------------------------------
+    position_inside_visible_container(x, y) {
+        const container = this.gantt.$container;
+        const margin = 8;
+
+        this.parent.style.visibility = 'hidden';
+        this.parent.style.left = '0px';
+        this.parent.style.top = '0px';
+        this.parent.style.maxWidth = Math.max(160, container.clientWidth - margin * 2) + 'px';
+        this.parent.classList.remove('hide');
+
+        const popupWidth = this.parent.offsetWidth;
+        const popupHeight = this.parent.offsetHeight;
+
+        const minLeft = container.scrollLeft + margin;
+        const maxLeft = container.scrollLeft + container.clientWidth - popupWidth - margin;
+        const minTop = container.scrollTop + margin;
+        const maxTop = container.scrollTop + container.clientHeight - popupHeight - margin;
+
+        const desiredLeft = x + 10;
+        const desiredTop = y - 10;
+
+        this.parent.style.left = Math.max(minLeft, Math.min(desiredLeft, Math.max(minLeft, maxLeft))) + 'px';
+        this.parent.style.top = Math.max(minTop, Math.min(desiredTop, Math.max(minTop, maxTop))) + 'px';
+        this.parent.style.visibility = '';
+    }
+    // >>> SR: Popup outside container fix ---------------------------------------------
     hide() {
         this.parent.classList.add('hide');
     }
