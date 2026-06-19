@@ -446,6 +446,9 @@ export default class Gantt {
                 padding_end.duration,
                 padding_end.scale,
             );
+            // >>> SR: include_today_in_padding --------------------------------
+            this.extend_gantt_range_to_include_today();
+            // <<< SR: include_today_in_padding --------------------------------
 
             if (this.should_align_to_week_start()) {
                 // Ensure week-based views still start on the configured week start after padding/extension.
@@ -1162,35 +1165,23 @@ export default class Gantt {
     get_closest_date() {
         let now = new Date();
         if (now < this.gantt_start || now > this.gantt_end) return null;
+        // >>> SR: include_today_in_padding ------------------------------------
+        const current = this.get_date_tick_for_date(now);
+        const el = current
+            ? this.$container.querySelector(
+                  '.date_' +
+                      sanitize(
+                          date_utils.format(
+                              current,
+                              this.config.date_format,
+                              this.options.language,
+                          ),
+                      ),
+              )
+            : null;
 
-        let current = new Date(),
-            el = this.$container.querySelector(
-                '.date_' +
-                    sanitize(
-                        date_utils.format(
-                            current,
-                            this.config.date_format,
-                            this.options.language,
-                        ),
-                    ),
-            );
-
-        // safety check to prevent infinite loop
-        let c = 0;
-        while (!el && c < this.config.step) {
-            current = date_utils.add(current, -1, this.config.unit);
-            el = this.$container.querySelector(
-                '.date_' +
-                    sanitize(
-                        date_utils.format(
-                            current,
-                            this.config.date_format,
-                            this.options.language,
-                        ),
-                    ),
-            );
-            c++;
-        }
+        if (!el) return null;
+        // <<< SR: include_today_in_padding ------------------------------------
         // >>> SR: Date calculation Fix ------------------------------------
         return [
             date_utils.parse(
@@ -1867,6 +1858,39 @@ export default class Gantt {
     return date_utils.add(aligned, -days_since_week_start, 'day');
   }
 
+  // >>> SR: include_today_in_padding ------------------------------------------
+  should_include_today_in_padding() {
+    return Boolean(this.options.include_today_in_padding);
+  }
+
+  extend_gantt_range_to_include_today() {
+    if (!this.should_include_today_in_padding()) return;
+
+    const today_start = date_utils.today();
+    const today_end = date_utils.add(today_start, 1, 'day');
+
+    if (today_start < this.gantt_start) {
+      this.gantt_start = date_utils.start_of(today_start, this.config.unit);
+    }
+
+    if (today_end > this.gantt_end) {
+      this.gantt_end = today_end;
+    }
+  }
+
+  get_date_tick_for_date(date) {
+    if (!this.dates?.length) return null;
+
+    for (let i = this.dates.length - 1; i >= 0; i--) {
+      if (this.dates[i] <= date) {
+        return this.dates[i];
+      }
+    }
+
+    return this.dates[0];
+  }
+  // <<< SR: include_today_in_padding ------------------------------------------
+  
   get_position_by_date(date) {
     if (!date) return 0;
 

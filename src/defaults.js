@@ -183,7 +183,7 @@ const DEFAULT_OPTIONS = { //TODO SR Info: This is the old "default_options"
         );*/
       // <<< SR: Bar Aggregation -----------------------------------------------
     },
-    popup_on: 'click',
+    popup_on: 'click', //hover
     readonly_progress: false,
     readonly_dates: false,
     readonly: false,
@@ -204,6 +204,7 @@ const DEFAULT_OPTIONS = { //TODO SR Info: This is the old "default_options"
     row_keys: null, // For empty lines
     default_duration: 2, // Default duration in days for tasks without start / end date and duration
     start_of_week: 'monday', // 'monday' | 'sunday'
+    include_today_in_padding: false, // Set to true to extend the padded date range until today is included.
     // <<< SR: Bar Aggregation -------------------------------------------------
 };
 
