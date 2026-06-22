@@ -58,6 +58,18 @@ export default class Popup {
         if (members?.length) {
           // clearing the details section of the aggregates bar because it is containing wrong date information.
           this.parent.querySelector('.details').innerHTML = '';
+          // >>> SR: upperRowTasks ---------------------------------------------
+          //TODO SR: Work in progress: currently, the upper part looks exactly like the lower. Format the popup so the user can differentiate then visually.
+          const upperRowTasks = task._isAggregate
+              ? this.get_overlapping_upper_row_tasks(task)
+              : [];
+
+          if (upperRowTasks.length) {
+            this.parent.appendChild(
+                this.build_aggregation_list(upperRowTasks)
+            );
+          }
+          // <<< SR: upperRowTasks ---------------------------------------------
           this.parent.appendChild(
               this.build_aggregation_list(members)
           );
@@ -187,8 +199,65 @@ export default class Popup {
      * Removes existing old aggregation list.
      */
     clear_aggregation_list() {
-      this.parent.querySelector('.agg-list')?.remove();
+      // >>> SR: upperRowTasks -------------------------------------------------
+      this.parent.querySelectorAll('.agg-list').forEach((list) => list.remove());
+      // <<< SR: upperRowTasks -------------------------------------------------
     }
+
+    // >>> SR: upperRowTasks ---------------------------------------------------
+
+  /**
+   * Returns the tasks from the same row that are overlapping with the aggregate task and are not members of the aggregate task. 
+   * This is needed to show all relevant tasks in the popup of an aggregate task,
+   * even those that are not part of the aggregation but are visually overlapping with it in the same row.
+   * @param aggregateTask
+   * @returns {T[]|*[]}
+   */
+  get_overlapping_upper_row_tasks(aggregateTask) {
+      const aggregateStart = aggregateTask?._start;
+      const aggregateEnd = this.get_task_end(aggregateTask);
+
+      if (!aggregateStart || !aggregateEnd) return [];
+
+      const memberIds = new Set(
+          (aggregateTask._members || []).map((member) => String(member.id))
+      );
+
+      return (this.gantt.tasks || [])
+          .filter((task) => task && !task._hidden && !task._isAggregate)
+          .filter((task) => task._rowIndex === aggregateTask._rowIndex)
+          .filter((task) => (task._lane ?? 0) === 0)
+          .filter((task) => !memberIds.has(String(task.id)))
+          .filter((task) => this.tasks_overlap(task, aggregateTask))
+          .sort((a, b) => {
+            if (+a._start !== +b._start) return +a._start - +b._start;
+
+            const aId = Number.isFinite(+a.id) ? +a.id : String(a.id);
+            const bId = Number.isFinite(+b.id) ? +b.id : String(b.id);
+            return aId > bId ? 1 : aId < bId ? -1 : 0;
+          });
+    }
+
+  /**
+   * Checks if two tasks overlap in time. Used to find upper row tasks that are overlapping with the aggregate task.
+   * 
+   * @param a
+   * @param b
+   * @returns {boolean}
+   */
+    tasks_overlap(a, b) {
+      const aEnd = this.get_task_end(a);
+      const bEnd = this.get_task_end(b);
+
+      if (!a?._start || !b?._start || !aEnd || !bEnd) return false;
+
+      return a._start < bEnd && b._start < aEnd;
+    }
+
+    get_task_end(task) {
+      return task?.orig_end ?? task?._end ?? null;
+    }
+    // <<< SR: upperRowTasks ---------------------------------------------------
     
     compute_duration(task) {
       if (task == null) return;
