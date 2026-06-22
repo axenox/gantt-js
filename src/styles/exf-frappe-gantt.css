@@ -66,3 +66,14 @@
   stroke-dasharray: 5;
 }
 /* <<< bar invalid overlay */
+
+/* >>> striped row backgrounds */
+.exf-gantt .gantt .grid-row.grid-row-striped {
+  fill: #f7f7f7;
+}
+
+.dark.exf-gantt .gantt-container .gantt .grid-row.grid-row-striped,
+.dark .exf-gantt .gantt-container .gantt .grid-row.grid-row-striped {
+  fill: #303030;
+}
+/* <<< striped row backgrounds */

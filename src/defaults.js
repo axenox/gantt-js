@@ -205,6 +205,7 @@ const DEFAULT_OPTIONS = { //TODO SR Info: This is the old "default_options"
     default_duration: 2, // Default duration in days for tasks without start / end date and duration
     start_of_week: 'monday', // 'monday' | 'sunday'
     include_today_in_padding: false, // Set to true to extend the padded date range until today is included.
+    stripe_rows: true, // Set to false to disable alternating row background colors.
     // <<< SR: Bar Aggregation -------------------------------------------------
 };
 

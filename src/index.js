@@ -578,23 +578,32 @@ export default class Gantt {
         const rows_layer = createSVG('g', { append_to: this.layers.grid });
 
         const row_width = this.dates.length * this.config.column_width;
-        const row_height = this.options.bar_height + this.options.padding;
+        // >>> SR: striped row backgrounds -------------------------------------
+        const rows = this._rowMeta?.length
+            ? this._rowMeta
+            : Array.from({ length: this.tasks.length }, (_, index) => ({
+                  index,
+                  top: index * this.options.row_height,
+                  height: this.options.row_height,
+              }));
 
-        let y = this.config.header_height;
-        for (
-            let y = this.config.header_height;
-            y < this.grid_height;
-            y += row_height
-        ) {
+        rows.forEach((row) => {
+            const row_class =
+                'grid-row' +
+                (this.options.stripe_rows && row.index % 2 === 1
+                    ? ' grid-row-striped'
+                    : '');
+
             createSVG('rect', {
                 x: 0,
-                y,
+                y: this.config.header_height + row.top,
                 width: row_width,
-                height: row_height,
-                class: 'grid-row',
+                height: row.height,
+                class: row_class,
                 append_to: rows_layer,
             });
-        }
+        });
+        // <<< SR: striped row backgrounds -------------------------------------
     }
 
     make_grid_header() {
@@ -671,25 +680,29 @@ export default class Gantt {
         });
 
         let row_y = this.config.header_height;
-
+        // >>> SR: striped row backgrounds -------------------------------------
         const row_width = this.dates.length * this.config.column_width;
-        const row_height = this.options.bar_height + this.options.padding;
         if (this.options.lines !== 'vertical') {
-            for (
-                let y = this.config.header_height;
-                y < this.grid_height;
-                y += row_height
-            ) {
+            const rows = this._rowMeta?.length
+                ? this._rowMeta
+                : Array.from({ length: this.tasks.length }, (_, index) => ({
+                      top: index * this.options.row_height,
+                      height: this.options.row_height,
+                  }));
+
+            rows.forEach((row) => {
+                row_y = this.config.header_height + row.top;
+
                 createSVG('line', {
                     x1: 0,
-                    y1: row_y + row_height,
+                    y1: row_y + row.height,
                     x2: row_width,
-                    y2: row_y + row_height,
+                    y2: row_y + row.height,
                     class: 'row-line',
                     append_to: $lines_layer,
                 });
-                row_y += row_height;
-            }
+            });
+            // <<< SR: striped row backgrounds ---------------------------------
         }
         if (this.options.lines === 'horizontal') return;
 
@@ -855,11 +868,13 @@ export default class Gantt {
     make_grid_highlights() {
         this.highlight_holidays();
         this.config.ignored_positions = [];
-
-        const height =
-            (this.options.bar_height + this.options.padding) *
-            this.tasks.length;
-      
+        // >>> SR: striped row backgrounds -------------------------------------
+        // TODO SR: Take it back if the row padding is still broken:
+        //const height = (this.options.bar_height + this.options.padding) * this.tasks.length;
+        const height = this.get_content_height();
+        
+        // <<< SR: striped row backgrounds -------------------------------------
+        
         //TODO SR: Test it once the padding has been fixed:
         //const height = this.get_content_height();
       
