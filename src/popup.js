@@ -24,6 +24,13 @@ export default class Popup {
     }
 
     show({ x, y, task, target }) {
+        // >>> SR: Stable hover popup ------------------------------------------
+        // In hover mode the popup is only informational. If it captures the
+        // pointer while it appears near the cursor, the bar receives mouseleave,
+        // hides the popup, receives mouseenter again, etc. This causes flicker.
+        this.parent.style.pointerEvents =
+            this.gantt.options.popup_on === 'hover' ? 'none' : '';
+        // <<< SR: Stable hover popup ------------------------------------------
         this.actions.innerHTML = '';
         let html = this.popup_func({
             task,

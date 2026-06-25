@@ -57,6 +57,11 @@
 .exf-gantt .gantt .bar-label.clip-left {
   text-anchor: start !important;
 }
+
+/* Keep the same pointer cursor when hovering the text inside a task bar. */
+.exf-gantt .gantt .bar-wrapper .bar-label {
+  cursor: pointer;
+}
 /* <<< Laber Overflow Handling */
 
 /* >>> bar invalid overlay */
