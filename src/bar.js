@@ -553,16 +553,20 @@ export default class Bar {
         }
 
         // >>> SR: Bar Aggregation ---------------------------------------------
-        //if (Number(this.task._end) !== Number(new_end_date)) { //TODO SR: Date without hours fix. Test it.
-        if (Number(this.task.orig_end) !== Number(new_end_date)) {
+        // >>> SR: Gantt rerender fix ------------------------------------------
+        const current_end_date = this.task.orig_end ?? this.task._end;
+        if (Number(current_end_date) !== Number(new_end_date)) {
             changed = true;
-            //this.task._end = new_end_date; //TODO SR: Date without hours fix. Test it.
+            this.task._end = new_end_date;
             this.task.orig_end = new_end_date;
         }
+        // <<< SR: Gantt rerender fix ------------------------------------------
         // <<< SR: Bar Aggregation ---------------------------------------------
 
         if (!changed) return;
-
+        // >>> SR: Date calculation after change fix ---------------------------------
+        this.sync_task_date_values(new_start_date, new_end_date);
+        // <<< SR: Date calculation after change fix ---------------------------------
         this.gantt.trigger_event('date_change', [
             this.task,
             new_start_date,
@@ -585,20 +589,22 @@ export default class Bar {
 
     compute_start_end_date() {
         const bar = this.$bar;
-        const x_in_units = bar.getX() / this.gantt.config.column_width;
-        let new_start_date = date_utils.add(
-            this.gantt.gantt_start,
-            x_in_units * this.gantt.config.step,
-            this.gantt.config.unit,
-        );
+      // >>> SR: Date calculation after change fix ---------------------------------
+        let new_start_date = this.gantt.get_date_by_position(bar.getX());
 
-        const width_in_units = bar.getWidth() / this.gantt.config.column_width;
-        const new_end_date = date_utils.add(
-            new_start_date,
-            width_in_units * this.gantt.config.step,
-            this.gantt.config.unit,
-        );
+        const width_changed =
+            bar.owidth != null &&
+            Math.abs(bar.getWidth() - bar.owidth) > 0.001;
+        let new_end_date;
 
+        if (!width_changed) {
+            const current_end_date = this.task.orig_end ?? this.task._end;
+            const duration = current_end_date - this.task._start;
+            new_end_date = new Date(new_start_date.getTime() + duration);
+        } else {
+            new_end_date = this.gantt.get_date_by_position(bar.getEndX());
+        }
+        // <<< SR: Date calculation after change fix ---------------------------------
         return { new_start_date, new_end_date };
     }
 
@@ -881,6 +887,42 @@ export default class Bar {
     }
     
     // >>> SR: Bar Aggregation -------------------------------------------------
+
+    // >>> SR: Date calculation after change fix ---------------------------------
+    sync_task_date_values(new_start_date, new_end_date) {
+      if (this.task.start) {
+        this.task.start = this.format_task_date_like_original(
+            new_start_date,
+            this.task.start,
+        );
+      }
+  
+      if (this.task.end) {
+        this.task.end = this.format_task_date_like_original(
+            date_utils.add(new_end_date, -1, 'second'),
+            this.task.end,
+        );
+      }
+    }
+  
+    format_task_date_like_original(date, original_value) {
+      if (original_value instanceof Date) {
+        return date_utils.clone(date);
+      }
+  
+      if (typeof original_value === 'string') {
+        const has_time = original_value.trim().includes(' ');
+        return date_utils.format(
+            date,
+            has_time ? this.gantt.options.date_format : 'YYYY-MM-dd',
+            this.gantt.options.language,
+        );
+      }
+  
+      return date;
+    }
+    // <<< SR: Date calculation after change fix ---------------------------------
+  
     // >>> SR: Date calculation Fix --------------------------------------------
     compute_width() {
       const endDate = this.task.orig_end ?? this.task._end;

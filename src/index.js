@@ -303,6 +303,21 @@ export default class Gantt {
         this.change_view_mode();
     }
 
+    // >>> SR: Date calculation after change fix -------------------------------
+    refresh_overlap_aggregates_after_drop() {
+        const scroll_left = this.$container.scrollLeft;
+        const scroll_top = this.$container.scrollTop;
+
+        this.compute_rows_and_lanes();
+        this.compute_overlap_aggregates();
+        this.relayout_visible_rows();
+        this.render();
+
+        this.$container.scrollLeft = scroll_left;
+        this.$container.scrollTop = scroll_top;
+    }
+    // <<< SR: Date calculation after change fix -------------------------------
+
     update_task(id, new_details) {
         let task = this.tasks.find((t) => t.id === id);
         let bar = this.bars[task._index];
@@ -1272,11 +1287,47 @@ export default class Gantt {
         let is_resizing_right = false;
         let parent_bar_id = null;
         let bars = []; // instanceof Bar
+        // >>> SR: Date calculation after change fix ---------------------------
+        let bar_action_started = false;
+        // <<< SR: Date calculation after change fix ---------------------------
         this.bar_being_dragged = null;
 
         const action_in_progress = () =>
             is_dragging || is_resizing_left || is_resizing_right;
 
+        // >>> SR: Date calculation after change fix ---------------------------------
+        const reset_bar_action_state = () => {
+            bars.forEach((bar) => {
+                if (bar?.$bar) bar.$bar.finaldx = 0;
+            });
+            bars = [];
+            bar_action_started = false;
+        };
+
+        const finish_bar_action = () => {
+            this.bar_being_dragged = null;
+
+            if (!bar_action_started) return;
+
+            let should_refresh_overlap_aggregates = false;
+
+            bars.forEach((bar) => {
+                const $bar = bar?.$bar;
+                if (!$bar?.finaldx) return;
+                bar.date_changed();
+                bar.compute_progress();
+                bar.set_action_completed();
+                should_refresh_overlap_aggregates = true;
+            });
+
+            reset_bar_action_state();
+
+            if (should_refresh_overlap_aggregates) {
+                this.refresh_overlap_aggregates_after_drop();
+            }
+        };
+      // <<< SR: Date calculation after change fix ---------------------------------
+        
         this.$svg.onclick = (e) => {
             if (e.target.classList.contains('grid-row')) this.unselect_all();
         };
@@ -1307,6 +1358,9 @@ export default class Gantt {
             x_on_start = e.offsetX || e.layerX;
 
             parent_bar_id = bar_wrapper.getAttribute('data-id');
+            // >>> SR: Date calculation after change fix ---------------------------------
+            bar_action_started = true;
+            // <<< SR: Date calculation after change fix ---------------------------------
             let ids;
             if (this.options.move_dependencies) {
                 ids = [
@@ -1539,18 +1593,15 @@ export default class Gantt {
             this.$container
                 .querySelector('.visible')
                 ?.classList?.remove?.('visible');
+            // >>> SR: Date calculation after change fix ---------------------------------
+            finish_bar_action();
+            // <<< SR: Date calculation after change fix ---------------------------------
         });
-
-        $.on(this.$svg, 'mouseup', (e) => {
-            this.bar_being_dragged = null;
-            bars.forEach((bar) => {
-                const $bar = bar.$bar;
-                if (!$bar.finaldx) return;
-                bar.date_changed();
-                bar.compute_progress();
-                bar.set_action_completed();
-            });
+      // >>> SR: Date calculation after change fix ---------------------------------
+        $.on(this.$svg, 'mouseup', () => {
+            finish_bar_action();
         });
+      // <<< SR: Date calculation after change fix ---------------------------------
 
         this.bind_bar_progress();
     }
@@ -1951,6 +2002,61 @@ export default class Gantt {
     const diff_in_units = date_utils.diff(date, this.gantt_start, this.config.unit);
     return (diff_in_units / this.config.step) * this.config.column_width;
   }
+
+  // >>> SR: Date calculation after change fix ---------------------------------
+  get_date_by_position(x) {
+    if (!x) return date_utils.clone(this.gantt_start);
+
+    const units = (x / this.config.column_width) * this.config.step;
+
+    if (this.config.unit === 'month') {
+      return this.get_date_by_month_position(units);
+    }
+
+    if (this.config.unit === 'year') {
+      return this.get_date_by_year_position(units);
+    }
+
+    return this.add_precise_units(this.gantt_start, units, this.config.unit);
+  }
+
+  get_date_by_month_position(month_units) {
+    const gantt_month_start = date_utils.start_of(this.gantt_start, 'month');
+    const whole_months = Math.floor(month_units);
+    const month_fraction = month_units - whole_months;
+    const month_start = date_utils.add(gantt_month_start, whole_months, 'month');
+    const day_offset = month_fraction * date_utils.get_days_in_month(month_start);
+
+    return this.add_precise_units(month_start, day_offset, 'day');
+  }
+
+  get_date_by_year_position(year_units) {
+    const gantt_year_start = date_utils.start_of(this.gantt_start, 'year');
+    const whole_years = Math.floor(year_units);
+    const year_fraction = year_units - whole_years;
+    const year_start = date_utils.add(gantt_year_start, whole_years, 'year');
+    const day_offset = year_fraction * date_utils.get_days_in_year(year_start);
+
+    return this.add_precise_units(year_start, day_offset, 'day');
+  }
+
+  add_precise_units(date, qty, unit) {
+    const MS_PER_UNIT = {
+      millisecond: 1,
+      second: 1000,
+      minute: 60 * 1000,
+      hour: 60 * 60 * 1000,
+      day: 24 * 60 * 60 * 1000,
+    };
+
+    const ms_per_unit = MS_PER_UNIT[unit];
+    if (ms_per_unit) {
+      return new Date(date.getTime() + qty * ms_per_unit);
+    }
+
+    return date_utils.add(date, qty, unit);
+  }
+  // <<< SR: Date calculation after change fix ---------------------------------
   // <<< SR: Date calculation Fix ----------------------------------------------
   
   /**
