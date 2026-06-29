@@ -73,13 +73,17 @@ export default class Popup {
 
           if (upperRowTasks.length) {
             this.parent.appendChild(
-                this.build_aggregation_list(upperRowTasks)
+                this.build_aggregation_list(
+                    upperRowTasks.concat(members),
+                    upperRowTasks.length,
+                )
+            );
+          } else {
+            this.parent.appendChild(
+                this.build_aggregation_list(members)
             );
           }
           // <<< SR: upperRowTasks ---------------------------------------------
-          this.parent.appendChild(
-              this.build_aggregation_list(members)
-          );
         }
         // <<< SR: Bar Aggregation ---------------------------------------------
         // >>> SR: Popup outside container fix ---------------------------------
@@ -121,15 +125,18 @@ export default class Popup {
 
   // >>> SR: Bar Aggregation ---------------------------------------------------
   /**
-   * Builds the aggregation list for given aggregation members.
+   * Builds the aggregation table for given aggregation members.
    * 
    * @param members
-   * @returns {HTMLUListElement}
+   * @param sectionStartIndex index where the member section starts after upper-row tasks
+   * @returns {HTMLTableElement}
    */
-    build_aggregation_list(members) {
+    build_aggregation_list(members, sectionStartIndex = null) {
       
-      const ul = document.createElement('ul');
-      ul.className = 'agg-list';
+      const table = document.createElement('table');
+      table.className = 'agg-list';
+      const tbody = document.createElement('tbody');
+      table.appendChild(tbody);
       
       //TODO SR: Check if we need adjustEnd function for the new time logic here.
   
@@ -142,16 +149,25 @@ export default class Popup {
               };*/
   
       // filling the aggregation bar popup
-      members.forEach(m => {
-        const li = document.createElement('li');
+      members.forEach((m, index) => {
+        const tr = document.createElement('tr');
+        // >>> SR: Tabular aggregation popup list ------------------------------
+        tr.className = 'agg-list-row';
+        if (sectionStartIndex != null && index === sectionStartIndex) {
+          tr.classList.add('agg-section-start');
+        }
+        // <<< SR: Tabular aggregation popup list ------------------------------
   
         // Color-Swatch at the left
+        const colorCell = document.createElement('td');
+        colorCell.className = 'agg-color-cell';
         const swatch = document.createElement('span');
         swatch.className = 'agg-color-swatch';
         if (m.color) {
           swatch.style.backgroundColor = String(m.color);
         }
-        li.appendChild(swatch);
+        colorCell.appendChild(swatch);
+        tr.appendChild(colorCell);
         
         // Getting the original task to know real start/end
         const originalTask = this.gantt.get_task ? this.gantt.get_task(m.id) : null;
@@ -162,11 +178,11 @@ export default class Popup {
         this.compute_duration(ogTask);
         
         let labelText = m.name;
-        let rangeText = '';
+        let durationText = '';
         
         const start_date = date_utils.format(
             m._start,
-            'MMM dd',
+            'dd.MM.yy',
             this.gantt.options.language,
         );
         // >>> SR: Date calculation Fix ----------------------------------------
@@ -175,31 +191,49 @@ export default class Popup {
         const end_date = date_utils.format(
             //date_utils.add(m._end, -1, 'second'),
             date_utils.add(org_end, -1, 'second'), //TODO SR: Date without hours fix. Test it.
-            'MMM dd',
+            'dd.MM.yy',
             this.gantt.options.language,
         );
+        let startText = hasRealStart ? start_date : '...';
+        let endText = hasRealEnd ? end_date : '...';
         
         if (hasRealStart || hasRealEnd) {
           if (hasRealStart && hasRealEnd) {
-            rangeText =
-                `${start_date} - ${end_date} (${ogTask.actual_duration} Tage${ogTask.ignored_duration ? ' + ' + ogTask.ignored_duration + ' Ausgeschlossen' : ''})`;
-          } else if (hasRealStart && !hasRealEnd) {
-            rangeText =
-                `${start_date} - ... `;
-          } else if (hasRealEnd && !hasRealStart) {
-            rangeText =
-                `... - ${end_date}`;
+            durationText = `${ogTask.actual_duration} Tage${ogTask.ignored_duration ? ' + ' + ogTask.ignored_duration + ' Ausgeschlossen' : ''}`;
           }
         }
-        
-        const textSpan = document.createElement('span');
-        textSpan.textContent = labelText + ' [ ' + rangeText + ' ]';
-        li.appendChild(textSpan);
+
+        // >>> SR: Tabular aggregation popup list ------------------------------
+        const startCell = document.createElement('td');
+        startCell.className = 'agg-start-date';
+        startCell.textContent = startText;
+        tr.appendChild(startCell);
+
+        const separatorCell = document.createElement('td');
+        separatorCell.className = 'agg-interval-separator';
+        separatorCell.textContent = '-';
+        tr.appendChild(separatorCell);
+
+        const endCell = document.createElement('td');
+        endCell.className = 'agg-end-date';
+        endCell.textContent = endText;
+        tr.appendChild(endCell);
+
+        const titleCell = document.createElement('td');
+        titleCell.className = 'agg-title';
+        titleCell.textContent = labelText;
+        tr.appendChild(titleCell);
+
+        const durationCell = document.createElement('td');
+        durationCell.className = 'agg-duration';
+        durationCell.textContent = durationText;
+        tr.appendChild(durationCell);
+        // <<< SR: Tabular aggregation popup list ------------------------------
   
-        ul.appendChild(li);
+        tbody.appendChild(tr);
       });
   
-      return ul;
+      return table;
     }
   
     /**
