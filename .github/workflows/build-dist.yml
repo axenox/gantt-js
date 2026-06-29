@@ -2,7 +2,7 @@ name: Build dist
 
 on:
     workflow_dispatch:
-    #push: #Uncomment it to enable automatic dist build on push to main branch
+    push:
         paths:
             - 'src/**'
             - 'package.json'
