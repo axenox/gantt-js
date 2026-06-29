@@ -3,6 +3,9 @@ name: Build dist
 on:
     workflow_dispatch:
 
+permissions:
+    contents: write
+
 jobs:
     build-dist:
         name: Build and commit dist
@@ -35,4 +38,4 @@ jobs:
                   fi
 
                   git commit -m "Build dist"
-                  git push
+                  git push origin HEAD:${{ github.ref_name }}
