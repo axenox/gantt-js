@@ -2,19 +2,6 @@ name: Build dist
 
 on:
     workflow_dispatch:
-    push:
-        paths:
-            - 'src/**'
-            - 'package.json'
-            - 'vite.config.js'
-            - '.github/workflows/build-dist.yml'
-
-permissions:
-    contents: write
-
-concurrency:
-    group: build-dist-${{ github.ref }}
-    cancel-in-progress: true
 
 jobs:
     build-dist:
