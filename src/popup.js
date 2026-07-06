@@ -67,21 +67,29 @@ export default class Popup {
           this.parent.querySelector('.details').innerHTML = '';
           // >>> SR: upperRowTasks ---------------------------------------------
           //TODO SR: Work in progress: currently, the upper part looks exactly like the lower. Format the popup so the user can differentiate then visually.
-          const upperRowTasks = task._isAggregate
-              ? this.get_overlapping_upper_row_tasks(task)
-              : [];
+          const append = element => this.parent.appendChild(element);
 
-          if (upperRowTasks.length) {
-            this.parent.appendChild(
-                this.build_aggregation_list(
-                    upperRowTasks.concat(members),
-                    upperRowTasks.length,
-                )
-            );
+          let upperRowTasks;
+
+          if (
+              this.gantt.options.popup_aggregate_include_upper_row_tasks === true &&
+              task._isAggregate
+          ) {
+            upperRowTasks = this.get_overlapping_upper_row_tasks(task);
+          }
+
+          if (upperRowTasks?.length) {
+            if (this.gantt.options.popup_aggregate_style === 'table') {
+              append(this.build_aggregation_table(
+                  upperRowTasks.concat(members),
+                  upperRowTasks.length,
+              ));
+            } else {
+              append(this.build_aggregation_part(upperRowTasks));
+              append(this.build_aggregation_part(members));
+            }
           } else {
-            this.parent.appendChild(
-                this.build_aggregation_list(members)
-            );
+            append(this.build_aggregation_part(members));
           }
           // <<< SR: upperRowTasks ---------------------------------------------
         }
@@ -123,6 +131,18 @@ export default class Popup {
         this.parent.classList.add('hide');
     }
 
+    build_aggregation_part(members, sectionStartIndex = null) {
+      switch (this.gantt.options.popup_aggregate_style) {
+        case 'list':
+          return this.build_aggregation_list(members);
+        case 'table':
+          return this.build_aggregation_table(members, sectionStartIndex);
+        default:
+          console.warn(`Unknown aggregation style: ${this.gantt.options.popup_aggregate_style}. Falling back to 'list'.`);
+          return this.build_aggregation_list(members);
+      }
+    }
+    
   // >>> SR: Bar Aggregation ---------------------------------------------------
   /**
    * Builds the aggregation table for given aggregation members.
@@ -131,10 +151,12 @@ export default class Popup {
    * @param sectionStartIndex index where the member section starts after upper-row tasks
    * @returns {HTMLTableElement}
    */
-    build_aggregation_list(members, sectionStartIndex = null) {
+    build_aggregation_table(members, sectionStartIndex = null) {
       
       const table = document.createElement('table');
-      table.className = 'agg-list';
+      // >>> SR: Aggregation popup list/table styles --------------------------
+      table.className = 'agg-table';
+      // <<< SR: Aggregation popup list/table styles --------------------------
       const tbody = document.createElement('tbody');
       table.appendChild(tbody);
       
@@ -235,13 +257,87 @@ export default class Popup {
   
       return table;
     }
+    
+
+    /**
+     * This is the list overlapping popup version
+     * This one may be removed in the future.
+     * 
+     * @param members
+     * @returns {HTMLUListElement}
+     */
+    build_aggregation_list(members) {
+  
+      const ul = document.createElement('ul');
+      ul.className = 'agg-list';
+      
+      // filling the aggregation bar popup
+      members.forEach(m => {
+        const li = document.createElement('li');
+  
+        // Color-Swatch at the left
+        const swatch = document.createElement('span');
+        swatch.className = 'agg-color-swatch';
+        if (m.color) {
+          swatch.style.backgroundColor = String(m.color);
+        }
+        li.appendChild(swatch);
+  
+        // Getting the original task to know real start/end
+        const originalTask = this.gantt.get_task ? this.gantt.get_task(m.id) : null;
+        const hasRealStart = !!(originalTask && originalTask.start);
+        const hasRealEnd = !!(originalTask && originalTask.end);
+  
+        let ogTask = this.gantt.get_task ? this.gantt.get_task(m.id) : null;
+        this.compute_duration(ogTask);
+  
+        let labelText = m.name;
+        let rangeText = '';
+  
+        const start_date = date_utils.format(
+            m._start,
+            'MMM dd',
+            this.gantt.options.language,
+        );
+        // >>> SR: Date calculation Fix ----------------------------------------
+        let org_end = m.orig_end ?? m._end; //TODO SR: Date without hours fix. Test it.
+        // <<< SR: Date calculation Fix ----------------------------------------
+        const end_date = date_utils.format(
+            //date_utils.add(m._end, -1, 'second'),
+            date_utils.add(org_end, -1, 'second'), //TODO SR: Date without hours fix. Test it.
+            'MMM dd',
+            this.gantt.options.language,
+        );
+  
+        if (hasRealStart || hasRealEnd) {
+          if (hasRealStart && hasRealEnd) {
+            rangeText =
+                `${start_date} - ${end_date} (${ogTask.actual_duration} Tage${ogTask.ignored_duration ? ' + ' + ogTask.ignored_duration + ' Ausgeschlossen' : ''})`;
+          } else if (hasRealStart && !hasRealEnd) {
+            rangeText =
+                `${start_date} - ... `;
+          } else if (hasRealEnd && !hasRealStart) {
+            rangeText =
+                `... - ${end_date}`;
+          }
+        }
+  
+        const textSpan = document.createElement('span');
+        textSpan.textContent = labelText + ' [ ' + rangeText + ' ]';
+        li.appendChild(textSpan);
+  
+        ul.appendChild(li);
+      });
+  
+      return ul;
+    }
   
     /**
      * Removes existing old aggregation list.
      */
     clear_aggregation_list() {
       // >>> SR: upperRowTasks -------------------------------------------------
-      this.parent.querySelectorAll('.agg-list').forEach((list) => list.remove());
+      this.parent.querySelectorAll('.agg-list, .agg-table').forEach((list) => list.remove());
       // <<< SR: upperRowTasks -------------------------------------------------
     }
 
