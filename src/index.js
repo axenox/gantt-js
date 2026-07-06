@@ -2154,6 +2154,58 @@ export default class Gantt {
         const ib = isFinite(+b.id) ? +b.id : String(b.id);
         return ia > ib ? 1 : ia < ib ? -1 : 0;
       };
+      // >>> SR: Priority aggregation top lane --------------------------------
+      // Returns true when a task has a numeric priority. Rows without priority
+      // keep the previous top-lane sorting unchanged.
+      const hasPriority = (task) => Number.isFinite(Number(task?.priority));
+
+      const overlaps = (a,b) => (a._start < b._end) && (b._start < a._end);
+
+      const byPriorityThenEndStartId = (a,b) => {
+        const aHasPriority = hasPriority(a);
+        const bHasPriority = hasPriority(b);
+
+        if (aHasPriority || bHasPriority) {
+          if (aHasPriority && bHasPriority) {
+            const priorityDiff = Number(b.priority) - Number(a.priority);
+            if (priorityDiff !== 0) return priorityDiff;
+          } else {
+            return aHasPriority ? -1 : 1;
+          }
+        }
+
+        return byEndStartId(a,b);
+      };
+
+      /**
+       * Selects the visible top-lane tasks for one row.
+       * If no priority is present, the old interval-scheduling order is used.
+       * If priority is present, higher-priority tasks are selected first and
+       * lower-priority overlapping tasks are moved to the aggregation lane.
+       */
+      const selectTopLane = (listRaw) => {
+        const rowHasPriority = listRaw.some(hasPriority);
+        const candidates = listRaw.slice().sort(
+            rowHasPriority ? byPriorityThenEndStartId : byEndStartId,
+        );
+        const topLane = [];
+
+        for (const t of candidates) {
+          if (rowHasPriority) {
+            if (!topLane.some((selected) => overlaps(selected, t))) {
+              topLane.push(t);
+            }
+          } else {
+            const lastTopTask = topLane[topLane.length - 1];
+            if (!lastTopTask || t._start >= lastTopTask._end) {
+              topLane.push(t);
+            }
+          }
+        }
+
+        return topLane.sort(byStartThenId);
+      };
+      // <<< SR: Priority aggregation top lane --------------------------------
       const byStartThenId = (a,b) => {
         if (+a._start !== +b._start) return +a._start - +b._start;
         const ia = isFinite(+a.id) ? +a.id : String(a.id);
@@ -2173,16 +2225,10 @@ export default class Gantt {
       for (const [rowIndex, listRaw] of rows.entries()) {
         if (!listRaw.length) continue;
   
-        // 1) top lane via interval scheduling (max. non-overlapping tasks)
-        const candidates = listRaw.slice().sort(byEndStartId);
-        const topLane = [];
-        let lastEnd = null;
-        for (const t of candidates) {
-          if (lastEnd == null || t._start >= lastEnd) {
-            topLane.push(t);
-            lastEnd = t._end;
-          }
-        }
+        // 1) top lane via interval scheduling, optionally priority-aware
+        // >>> SR: Priority aggregation top lane ------------------------------
+        const topLane = selectTopLane(listRaw);
+        // <<< SR: Priority aggregation top lane ------------------------------
   
         const topSet = new Set(topLane);
         const hidden = listRaw.filter(t => !topSet.has(t)); // everything that is not at the top
@@ -2262,6 +2308,9 @@ export default class Gantt {
                 _end: m._end,
                 end: m.end, //TODO SR: Date without hours fix. Test it.
                 color: m.color,
+                // >>> SR: Priority aggregation top lane ----------------------
+                priority: m.priority,
+                // <<< SR: Priority aggregation top lane ----------------------
                 actual_duration: m.actual_duration, //TODO SR: It is undefined here because it is only set under "bar.compute_duration()".
                 ignored_duration: m.ignored_duration //TODO SR: It is undefined here because it is only set under "bar.compute_duration()".
               })),

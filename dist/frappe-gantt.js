@@ -3197,6 +3197,41 @@ var Gantt = function() {
         const ib = isFinite(+b.id) ? +b.id : String(b.id);
         return ia > ib ? 1 : ia < ib ? -1 : 0;
       };
+      const hasPriority = (task) => Number.isFinite(Number(task == null ? void 0 : task.priority));
+      const overlaps = (a, b) => a._start < b._end && b._start < a._end;
+      const byPriorityThenEndStartId = (a, b) => {
+        const aHasPriority = hasPriority(a);
+        const bHasPriority = hasPriority(b);
+        if (aHasPriority || bHasPriority) {
+          if (aHasPriority && bHasPriority) {
+            const priorityDiff = Number(b.priority) - Number(a.priority);
+            if (priorityDiff !== 0) return priorityDiff;
+          } else {
+            return aHasPriority ? -1 : 1;
+          }
+        }
+        return byEndStartId(a, b);
+      };
+      const selectTopLane = (listRaw) => {
+        const rowHasPriority = listRaw.some(hasPriority);
+        const candidates = listRaw.slice().sort(
+          rowHasPriority ? byPriorityThenEndStartId : byEndStartId
+        );
+        const topLane = [];
+        for (const t of candidates) {
+          if (rowHasPriority) {
+            if (!topLane.some((selected) => overlaps(selected, t))) {
+              topLane.push(t);
+            }
+          } else {
+            const lastTopTask = topLane[topLane.length - 1];
+            if (!lastTopTask || t._start >= lastTopTask._end) {
+              topLane.push(t);
+            }
+          }
+        }
+        return topLane.sort(byStartThenId);
+      };
       const byStartThenId = (a, b) => {
         if (+a._start !== +b._start) return +a._start - +b._start;
         const ia = isFinite(+a.id) ? +a.id : String(a.id);
@@ -3212,15 +3247,7 @@ var Gantt = function() {
       });
       for (const [rowIndex, listRaw] of rows.entries()) {
         if (!listRaw.length) continue;
-        const candidates = listRaw.slice().sort(byEndStartId);
-        const topLane = [];
-        let lastEnd = null;
-        for (const t of candidates) {
-          if (lastEnd == null || t._start >= lastEnd) {
-            topLane.push(t);
-            lastEnd = t._end;
-          }
-        }
+        const topLane = selectTopLane(listRaw);
         const topSet = new Set(topLane);
         const hidden = listRaw.filter((t) => !topSet.has(t));
         topLane.forEach((t) => {
@@ -3282,6 +3309,9 @@ var Gantt = function() {
                 end: m.end,
                 //TODO SR: Date without hours fix. Test it.
                 color: m.color,
+                // >>> SR: Priority aggregation top lane ----------------------
+                priority: m.priority,
+                // <<< SR: Priority aggregation top lane ----------------------
                 actual_duration: m.actual_duration,
                 //TODO SR: It is undefined here because it is only set under "bar.compute_duration()".
                 ignored_duration: m.ignored_duration
