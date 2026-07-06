@@ -741,10 +741,9 @@ class Bar {
       }, 200);
     });
     $.on(this.group, "mouseleave", () => {
-      var _a, _b;
       clearTimeout(timeout);
       if (this.gantt.options.popup_on === "hover")
-        (_b = (_a = this.gantt.popup) == null ? void 0 : _a.hide) == null ? void 0 : _b.call(_a);
+        this.gantt.popup?.hide?.();
       if (!this.invalid) {
         this.gantt.$container.querySelector(`.highlight-${CSS.escape(task_id)}`).classList.add("hide");
       }
@@ -1171,8 +1170,7 @@ class Bar {
     return Math.max(6, h);
   }
   rowTop(rowIndex) {
-    var _a;
-    return ((_a = this.gantt._rowMeta[rowIndex]) == null ? void 0 : _a.top) || 0;
+    return this.gantt._rowMeta[rowIndex]?.top || 0;
   }
   /**
    * Defines an SVG pattern for hatching, which is used to indicate invalid bars.
@@ -1290,7 +1288,7 @@ class Popup {
     else this.parent.appendChild(this.actions);
     this.clear_aggregation_list();
     const members = task._isAggregate ? task._members || [] : task._aggMembers || [];
-    if (members == null ? void 0 : members.length) {
+    if (members?.length) {
       this.parent.querySelector(".details").innerHTML = "";
       const upperRowTasks = task._isAggregate ? this.get_overlapping_upper_row_tasks(task) : [];
       if (upperRowTasks.length) {
@@ -1428,7 +1426,7 @@ class Popup {
    * @returns {T[]|*[]}
    */
   get_overlapping_upper_row_tasks(aggregateTask) {
-    const aggregateStart = aggregateTask == null ? void 0 : aggregateTask._start;
+    const aggregateStart = aggregateTask?._start;
     const aggregateEnd = this.get_task_end(aggregateTask);
     if (!aggregateStart || !aggregateEnd) return [];
     const memberIds = new Set(
@@ -1451,11 +1449,11 @@ class Popup {
   tasks_overlap(a, b) {
     const aEnd = this.get_task_end(a);
     const bEnd = this.get_task_end(b);
-    if (!(a == null ? void 0 : a._start) || !(b == null ? void 0 : b._start) || !aEnd || !bEnd) return false;
+    if (!a?._start || !b?._start || !aEnd || !bEnd) return false;
     return a._start < bEnd && b._start < aEnd;
   }
   get_task_end(task) {
-    return (task == null ? void 0 : task.orig_end) ?? (task == null ? void 0 : task._end) ?? null;
+    return task?.orig_end ?? task?._end ?? null;
   }
   // <<< SR: upperRowTasks ---------------------------------------------------
   compute_duration(task) {
@@ -1719,7 +1717,7 @@ class Gantt {
   }
   setup_options(options) {
     this.original_options = options;
-    if (options == null ? void 0 : options.view_modes) {
+    if (options?.view_modes) {
       options.view_modes = options.view_modes.map((mode) => {
         if (typeof mode === "string") {
           const predefined_mode = DEFAULT_VIEW_MODES.find(
@@ -2061,10 +2059,9 @@ class Gantt {
       this.$container.style.height = grid_height + "px";
   }
   make_grid_rows() {
-    var _a;
     const rows_layer = createSVG("g", { append_to: this.layers.grid });
     const row_width = this.dates.length * this.config.column_width;
-    const rows = ((_a = this._rowMeta) == null ? void 0 : _a.length) ? this._rowMeta : Array.from({ length: this.tasks.length }, (_, index) => ({
+    const rows = this._rowMeta?.length ? this._rowMeta : Array.from({ length: this.tasks.length }, (_, index) => ({
       index,
       top: index * this.options.row_height,
       height: this.options.row_height
@@ -2133,7 +2130,6 @@ class Gantt {
     }
   }
   make_grid_ticks() {
-    var _a;
     if (this.options.lines === "none") return;
     let tick_x = 0;
     let tick_y = this.config.header_height;
@@ -2145,7 +2141,7 @@ class Gantt {
     let row_y = this.config.header_height;
     const row_width = this.dates.length * this.config.column_width;
     if (this.options.lines !== "vertical") {
-      const rows = ((_a = this._rowMeta) == null ? void 0 : _a.length) ? this._rowMeta : Array.from({ length: this.tasks.length }, (_, index) => ({
+      const rows = this._rowMeta?.length ? this._rowMeta : Array.from({ length: this.tasks.length }, (_, index) => ({
         top: index * this.options.row_height,
         height: this.options.row_height
       }));
@@ -2586,7 +2582,7 @@ class Gantt {
     const action_in_progress = () => is_dragging || is_resizing_left || is_resizing_right;
     const reset_bar_action_state = () => {
       bars.forEach((bar) => {
-        if (bar == null ? void 0 : bar.$bar) bar.$bar.finaldx = 0;
+        if (bar?.$bar) bar.$bar.finaldx = 0;
       });
       bars = [];
       bar_action_started = false;
@@ -2596,8 +2592,8 @@ class Gantt {
       if (!bar_action_started) return;
       let should_refresh_overlap_aggregates = false;
       bars.forEach((bar) => {
-        const $bar = bar == null ? void 0 : bar.$bar;
-        if (!($bar == null ? void 0 : $bar.finaldx)) return;
+        const $bar = bar?.$bar;
+        if (!$bar?.finaldx) return;
         bar.date_changed();
         bar.compute_progress();
         bar.set_action_completed();
@@ -2773,11 +2769,10 @@ class Gantt {
       });
     });
     document.addEventListener("mouseup", () => {
-      var _a, _b, _c;
       is_dragging = false;
       is_resizing_left = false;
       is_resizing_right = false;
-      (_c = (_b = (_a = this.$container.querySelector(".visible")) == null ? void 0 : _a.classList) == null ? void 0 : _b.remove) == null ? void 0 : _c.call(_b, "visible");
+      this.$container.querySelector(".visible")?.classList?.remove?.("visible");
       finish_bar_action();
     });
     $.on(this.$svg, "mouseup", () => {
@@ -2959,13 +2954,12 @@ class Gantt {
    * @memberof Gantt
    */
   clear() {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
     this.$svg.innerHTML = "";
-    (_b = (_a = this.$header) == null ? void 0 : _a.remove) == null ? void 0 : _b.call(_a);
-    (_d = (_c = this.$side_header) == null ? void 0 : _c.remove) == null ? void 0 : _d.call(_c);
-    (_f = (_e = this.$current_highlight) == null ? void 0 : _e.remove) == null ? void 0 : _f.call(_e);
-    (_h = (_g = this.$extras) == null ? void 0 : _g.remove) == null ? void 0 : _h.call(_g);
-    (_j = (_i = this.popup) == null ? void 0 : _i.hide) == null ? void 0 : _j.call(_i);
+    this.$header?.remove?.();
+    this.$side_header?.remove?.();
+    this.$current_highlight?.remove?.();
+    this.$extras?.remove?.();
+    this.popup?.hide?.();
   }
   // >>> SR: Bar Aggregation ---------------------------------------------------
   // >>> SR: Date calculation Fix ----------------------------------------------
@@ -3048,8 +3042,7 @@ class Gantt {
     }
   }
   get_date_tick_for_date(date) {
-    var _a;
-    if (!((_a = this.dates) == null ? void 0 : _a.length)) return null;
+    if (!this.dates?.length) return null;
     for (let i = this.dates.length - 1; i >= 0; i--) {
       if (this.dates[i] <= date) {
         return this.dates[i];
@@ -3422,8 +3415,7 @@ class Gantt {
    * @returns {number}
    */
   get_content_height() {
-    var _a;
-    return (((_a = this._rows) == null ? void 0 : _a.length) || 0) * this.options.row_height;
+    return (this._rows?.length || 0) * this.options.row_height;
   }
   /**
    * Binds the outside click to hide popups and unselect tasks.
