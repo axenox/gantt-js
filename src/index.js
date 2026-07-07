@@ -101,6 +101,13 @@ export default class Gantt {
         }
         this.options = { ...DEFAULT_OPTIONS, ...options };
 
+        // >>> SR: Configurable date formatter --------------------------------
+        date_utils.set_date_formatter(
+            this.options.date_formatter,
+            this.options.date_format_default,
+        );
+        // <<< SR: Configurable date formatter --------------------------------
+
         // >>> SR: Bar Aggregation ---------------------------------------------
         if (this.options.row_height == null) {
           //TODO SR: The calculation here is incorrect (Must bar_inner_padding and lane_padding be taken into account?).

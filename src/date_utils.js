@@ -6,7 +6,30 @@ const MINUTE = 'minute';
 const SECOND = 'second';
 const MILLISECOND = 'millisecond';
 
-export default {
+const date_utils = {
+    // >>> SR: Configurable date formatter ------------------------------------
+    _date_formatter: null,
+    _date_format_default: 'YYYY-MM-DD HH:mm:ss.SSS',
+
+    /**
+     * Configures the date formatter used by date_utils.format().
+     * The formatter is prepared once so format() can stay cheap because it is
+     * called very often while rendering headers, popups and bars.
+     */
+    set_date_formatter(date_formatter = null, date_format_default = 'YYYY-MM-DD HH:mm:ss.SSS') {
+        this._date_format_default = date_format_default || 'YYYY-MM-DD HH:mm:ss.SSS';
+        if (date_formatter != null && typeof date_formatter !== 'function') {
+            console.warn('date_formatter must be a function or null. Falling back to default_formatter().');
+        }
+
+        this._date_formatter = typeof date_formatter === 'function'
+            ? date_formatter
+            : ((date, format_string, lang) =>
+            this.default_formatter(date, format_string, lang)
+        );
+    },
+    // <<< SR: Configurable date formatter ------------------------------------
+
     parse_duration(duration) {
         const regex = /([0-9]+)(y|m|d|h|min|s|ms)/gm;
         const matches = regex.exec(duration);
@@ -84,11 +107,18 @@ export default {
 
     // >>> SR: Bar Aggregation -------------------------------------------------
     // TODO SR: Complete the time formating testing and clean the old code here:
-    format(date, format_string = 'YYYY-MM-dd HH:mm:ss.SSS') {
+/*    format(date, format_string = 'YYYY-MM-dd HH:mm:ss.SSS') {
       return exfTools.date.format(date, format_string);
+    },*/
+
+    format(date, date_format, lang = 'en') {
+        // >>> SR: Configurable date formatter --------------------------------
+        return this._date_formatter(date, date_format || this._date_format_default, lang);
+        // <<< SR: Configurable date formatter --------------------------------
+      //return exfTools.date.format(date, date_format); //TODO SR: Entferne
     },
 
-/*    format(date, date_format = 'YYYY-MM-DD HH:mm:ss.SSS', lang = 'en') {
+    default_formatter(date, date_format = 'YYYY-MM-DD HH:mm:ss.SSS', lang = 'en') {
         const dateTimeFormat = new Intl.DateTimeFormat(lang, {
             month: 'long',
         });
@@ -99,11 +129,17 @@ export default {
         const month_name_capitalized =
             month_name.charAt(0).toUpperCase() + month_name.slice(1);
 
-        const values = this.get_date_values(date).map((d) => padStart(d, 2, 0));
+        const values = this.get_date_values(date).map((d, i) =>
+            padStart(d, i === 6 ? 3 : 2, 0),
+        );
         const format_map = {
             YYYY: values[0],
+            yyyy: values[0],
+            yy: String(values[0]).slice(-2),
             MM: padStart(+values[1] + 1, 2, 0),
             DD: values[2],
+            dd: values[2],
+            d: date.getDate(),
             HH: values[3],
             mm: values[4],
             ss: values[5],
@@ -130,7 +166,7 @@ export default {
         });
 
         return str;
-    },*/
+    },
     // <<< SR: Bar Aggregation -------------------------------------------------
 
     diff(date_a, date_b, scale = 'day') {
@@ -297,6 +333,10 @@ export default {
         return date.getFullYear() % 4 ? 365 : 366;
     },
 };
+
+date_utils.set_date_formatter(null);
+
+export default date_utils;
 
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/padStart
 function padStart(str, targetLength, padString) {

@@ -207,7 +207,9 @@ const DEFAULT_OPTIONS = { //TODO SR Info: This is the old "default_options"
     include_today_in_padding: false, // Set to true to extend the padded date range until today is included.
     stripe_rows: true, // Set to false to disable alternating row background colors.
     popup_aggregate_style: 'table', // 'list' | 'table'
-    popup_aggregate_include_upper_row_tasks: true // Includes tasks that are in the top lane of the row in the aggregate popup. Set to false to only include tasks inside the aggregation block.
+    popup_aggregate_include_upper_row_tasks: true, // Includes tasks that are in the top lane of the row in the aggregate popup. Set to false to only include tasks inside the aggregation block.
+    date_formatter: null, // null | function(date, format_string, lang)
+    date_format_default: 'YYYY-MM-DD HH:mm:ss.SSS', // fallback format for date_utils.format(date)
     // <<< SR: Bar Aggregation -------------------------------------------------
 };
 
