@@ -67,7 +67,12 @@ export default class Popup {
           this.parent.querySelector('.details').innerHTML = '';
           // >>> SR: upperRowTasks ---------------------------------------------
           //TODO SR: Work in progress: currently, the upper part looks exactly like the lower. Format the popup so the user can differentiate then visually.
-          const append = element => this.parent.appendChild(element);
+          // >>> SR: Aggregation popup Gantt ----------------------------------
+          let appendTarget = this.parent;
+          let popupGanttTarget = null;
+          let popupGanttListContent = null;
+          const append = element => appendTarget.appendChild(element);
+          // <<< SR: Aggregation popup Gantt ----------------------------------
 
           let upperRowTasks;
 
@@ -77,6 +82,21 @@ export default class Popup {
           ) {
             upperRowTasks = this.get_overlapping_upper_row_tasks(task);
           }
+
+          // >>> SR: Aggregation popup Gantt ----------------------------------
+          const aggregationTasks = upperRowTasks?.length
+              ? upperRowTasks.concat(members)
+              : members;
+
+          if (this.gantt.options.popup_aggregate_expand_tasks === true) {
+            const layout = this.build_aggregation_popup_layout();
+            this.move_popup_content_to_aggregation_layout(layout.listHeader);
+            appendTarget = layout.listContent;
+            popupGanttTarget = layout.ganttPane;
+            popupGanttListContent = layout.listContent;
+            this.parent.appendChild(layout.wrapper);
+          }
+          // <<< SR: Aggregation popup Gantt ----------------------------------
 
           if (upperRowTasks?.length) {
             if (this.gantt.options.popup_aggregate_style === 'table') {
@@ -91,6 +111,16 @@ export default class Popup {
           } else {
             append(this.build_aggregation_part(members));
           }
+
+          // >>> SR: Aggregation popup Gantt ----------------------------------
+          if (popupGanttTarget) {
+            this.render_aggregation_popup_gantt(
+                popupGanttTarget,
+                aggregationTasks,
+            );
+            this.align_aggregation_popup_rows(popupGanttListContent);
+          }
+          // <<< SR: Aggregation popup Gantt ----------------------------------
           // <<< SR: upperRowTasks ---------------------------------------------
         }
         // <<< SR: Bar Aggregation ---------------------------------------------
@@ -128,6 +158,9 @@ export default class Popup {
     }
     // >>> SR: Popup outside container fix ---------------------------------------------
     hide() {
+        // >>> SR: Aggregation popup Gantt ------------------------------------
+        this.destroy_popup_gantt?.();
+        // <<< SR: Aggregation popup Gantt ------------------------------------
         this.parent.classList.add('hide');
     }
 
@@ -142,6 +175,226 @@ export default class Popup {
           return this.build_aggregation_list(members);
       }
     }
+
+    // >>> SR: Aggregation popup Gantt ----------------------------------------
+    /**
+     * Builds the two-column popup body used when the aggregation popup also
+     * shows a small Gantt next to the task list.
+     * @returns {{wrapper: HTMLDivElement, listPane: HTMLDivElement, listHeader: HTMLDivElement, listContent: HTMLDivElement, ganttPane: HTMLDivElement}}
+     */
+    build_aggregation_popup_layout() {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'agg-popup-expanded';
+      // >>> SR: Aggregation popup Gantt layout fix ---------------------------
+      wrapper.style.display = 'inline-flex';
+      wrapper.style.flexDirection = 'row';
+      wrapper.style.flexWrap = 'nowrap';
+      wrapper.style.alignItems = 'flex-start';
+      // <<< SR: Aggregation popup Gantt layout fix ---------------------------
+
+      const listPane = document.createElement('div');
+      listPane.className = 'agg-popup-list-pane';
+      // >>> SR: Aggregation popup Gantt layout fix ---------------------------
+      listPane.style.flex = '0 0 auto';
+      // <<< SR: Aggregation popup Gantt layout fix ---------------------------
+      wrapper.appendChild(listPane);
+
+      const listHeader = document.createElement('div');
+      listHeader.className = 'agg-popup-list-header';
+      listPane.appendChild(listHeader);
+
+      const listContent = document.createElement('div');
+      listContent.className = 'agg-popup-list-content';
+      listPane.appendChild(listContent);
+
+      const ganttPane = document.createElement('div');
+      ganttPane.className = 'agg-popup-gantt-pane';
+      const width = this.get_popup_gantt_width();
+      ganttPane.style.width = `${width}px`;
+      ganttPane.style.flexBasis = `${width}px`;
+      // >>> SR: Aggregation popup Gantt layout fix ---------------------------
+      ganttPane.style.flexGrow = '0';
+      ganttPane.style.flexShrink = '0';
+      // <<< SR: Aggregation popup Gantt layout fix ---------------------------
+      wrapper.appendChild(ganttPane);
+
+      return { wrapper, listPane, listHeader, listContent, ganttPane };
+    }
+
+    /**
+     * Moves the standard popup title/subtitle/details/actions into the left
+     * pane of the expanded aggregation popup. This lets the popup Gantt on the
+     * right start at the very top instead of below the popup title.
+     * @param listHeader
+     */
+    move_popup_content_to_aggregation_layout(listHeader) {
+      [this.title, this.subtitle, this.details, this.actions].forEach((node) => {
+        if (node?.parentElement) {
+          listHeader.appendChild(node);
+        }
+      });
+    }
+
+    /**
+     * Creates the small Gantt instance displayed inside the aggregation popup.
+     * Every popup task gets its own lineIndex so the right-side Gantt mirrors
+     * the left-side task list one entry per row.
+     * @param target
+     * @param tasks
+     */
+    render_aggregation_popup_gantt(target, tasks) {
+      if (!target || !tasks?.length) return;
+
+      this.destroy_popup_gantt();
+
+      const popupTasks = tasks
+          .map((task, index) => this.create_popup_gantt_task(task, index))
+          .filter(Boolean);
+
+      if (!popupTasks.length) return;
+
+      const PopupGantt = this.gantt.constructor;
+      this.popup_gantt = new PopupGantt(
+          target,
+          popupTasks,
+          this.get_popup_gantt_options(popupTasks),
+      );
+
+      if (this.gantt.config?.view_mode?.name) {
+        this.popup_gantt.change_view_mode(this.gantt.config.view_mode.name);
+      }
+    }
+
+    /**
+     * Returns a copied task object that is safe to pass to a nested Gantt.
+     * @param task
+     * @param index
+     * @returns {object|null}
+     */
+    create_popup_gantt_task(task, index) {
+      const originalTask = this.gantt.get_task ? this.gantt.get_task(task.id) : null;
+      const taskEnd = this.get_task_end(task);
+
+      if (!task?._start || !taskEnd) return null;
+
+      const start = originalTask?.start || this.format_popup_gantt_date(task._start);
+      const end = originalTask?.end || this.format_popup_gantt_date(
+          date_utils.add(taskEnd, -1, 'second'),
+      );
+
+      if (!start || !end) return null;
+
+      return {
+        id: `popup_${index}_${task.id}`,
+        name: task.name,
+        start,
+        end,
+        progress: originalTask?.progress ?? task.progress ?? 0,
+        dependencies: [],
+        lineIndex: index,
+        readonly: true,
+        color: originalTask?.color ?? task.color,
+        colorHover: originalTask?.colorHover ?? task.colorHover,
+        progressColor: originalTask?.progressColor ?? task.progressColor,
+        textColor: originalTask?.textColor ?? task.textColor,
+        custom_class: originalTask?.custom_class ?? task.custom_class,
+      };
+    }
+
+    /**
+     * Formats Date objects for popup Gantt input without losing time-of-day.
+     * @param date
+     * @returns {string|null}
+     */
+    format_popup_gantt_date(date) {
+      if (!date) return null;
+      return date_utils.to_string(date, true);
+    }
+
+    /**
+     * Creates safe options for the nested popup Gantt and prevents recursive
+     * aggregation popups inside that nested chart.
+     * @param popupTasks
+     * @returns {object}
+     */
+    get_popup_gantt_options(popupTasks) {
+      return {
+        ...this.gantt.options,
+        view_modes: this.gantt.options.view_modes,
+        view_mode: this.gantt.config?.view_mode?.name || this.gantt.options.view_mode,
+        row_keys: popupTasks.map((_, index) => index),
+        row_height: 30,
+        upper_header_height: 30,
+        lower_header_height: 25,
+        container_height: 'auto',
+        infinite_padding: false,
+        keep_scroll_position: false,
+        scroll_to: 'start',
+        view_mode_select: this.gantt.options.view_mode_select,
+        today_button: this.gantt.options.today_button,
+        readonly: true,
+        readonly_dates: true,
+        readonly_progress: true,
+        move_dependencies: false,
+        popup: false,
+        //popup_on: 'click', //TODO SR: currently dont work.
+        popup_aggregate_expand_tasks: false,
+        popup_aggregate_include_upper_row_tasks: false,
+      };
+    }
+
+    /**
+     * Aligns the first left list/table row with the first task row of the
+     * nested popup Gantt and applies the popup Gantt row height to list rows.
+     * @param listContent
+     */
+    align_aggregation_popup_rows(listContent) {
+      if (!listContent || !this.popup_gantt) return;
+
+      const listHeader = listContent.parentElement?.querySelector(
+          '.agg-popup-list-header',
+      );
+      const popupHeaderHeight = this.popup_gantt.config?.header_height || 0;
+      const leftHeaderHeight = listHeader?.offsetHeight || 0;
+      const rowHeight = this.popup_gantt.options?.row_height || 0;
+
+      // TODO SR: Die "- 15" sind gerade fest eingebaut. Mache es dynamisch!
+      listContent.style.marginTop = `${Math.max(
+          0,
+          popupHeaderHeight - leftHeaderHeight - 15,
+      )}px`;
+
+      if (!rowHeight) return;
+
+      listContent
+          .querySelectorAll('.agg-table .agg-list-row, .agg-list li')
+          .forEach((row) => {
+            row.style.height = `${rowHeight}px`;
+            row.style.minHeight = `${rowHeight}px`;
+          });
+    }
+
+    /**
+     * Returns the configured popup Gantt width in px.
+     * @returns {number}
+     */
+    get_popup_gantt_width() {
+      return Math.max(
+          120,
+          Number(this.gantt.options.popup_aggregate_gantt_width) || 360,
+      );
+    }
+
+    /**
+     * Destroys the previous nested popup Gantt before a new popup body is built.
+     */
+    destroy_popup_gantt() {
+      if (this.popup_gantt?.destroy) {
+        this.popup_gantt.destroy();
+      }
+      this.popup_gantt = null;
+    }
+    // <<< SR: Aggregation popup Gantt ----------------------------------------
     
   // >>> SR: Bar Aggregation ---------------------------------------------------
   /**
@@ -337,8 +590,27 @@ export default class Popup {
      */
     clear_aggregation_list() {
       // >>> SR: upperRowTasks -------------------------------------------------
-      this.parent.querySelectorAll('.agg-list, .agg-table').forEach((list) => list.remove());
+      // >>> SR: Aggregation popup Gantt --------------------------------------
+      this.destroy_popup_gantt();
+      this.restore_popup_content_from_aggregation_layout();
+      this.parent
+          .querySelectorAll('.agg-popup-expanded, .agg-list, .agg-table')
+          .forEach((list) => list.remove());
+      // <<< SR: Aggregation popup Gantt --------------------------------------
       // <<< SR: upperRowTasks -------------------------------------------------
+    }
+
+    /**
+     * Moves title/subtitle/details/actions back to the popup root before an old
+     * expanded aggregation layout is removed. This keeps normal popups working
+     * after an expanded popup was shown once.
+     */
+    restore_popup_content_from_aggregation_layout() {
+      [this.title, this.subtitle, this.details, this.actions].forEach((node) => {
+        if (node?.closest?.('.agg-popup-expanded')) {
+          this.parent.appendChild(node);
+        }
+      });
     }
 
     // >>> SR: upperRowTasks ---------------------------------------------------
@@ -353,6 +625,11 @@ export default class Popup {
   get_overlapping_upper_row_tasks(aggregateTask) {
       const aggregateStart = aggregateTask?._start;
       const aggregateEnd = this.get_task_end(aggregateTask);
+      // >>> SR: Configurable row lanes ---------------------------------------
+      const aggregationLane = this.gantt.get_aggregation_lane_index
+          ? this.gantt.get_aggregation_lane_index()
+          : 1;
+      // <<< SR: Configurable row lanes ---------------------------------------
 
       if (!aggregateStart || !aggregateEnd) return [];
 
@@ -363,7 +640,9 @@ export default class Popup {
       return (this.gantt.tasks || [])
           .filter((task) => task && !task._hidden && !task._isAggregate)
           .filter((task) => task._rowIndex === aggregateTask._rowIndex)
-          .filter((task) => (task._lane ?? 0) === 0)
+          // >>> SR: Configurable row lanes -----------------------------------
+          .filter((task) => (task._lane ?? 0) < aggregationLane)
+          // <<< SR: Configurable row lanes -----------------------------------
           .filter((task) => !memberIds.has(String(task.id)))
           .filter((task) => this.tasks_overlap(task, aggregateTask))
           .sort((a, b) => {

@@ -117,6 +117,15 @@ export default class Gantt {
         if (this.options.bar_inner_padding == null) {
           this.options.bar_inner_padding = 6;
         }
+
+        // >>> SR: Configurable row lanes -------------------------------------
+        // At least two lanes are needed: visible upper lane(s) plus the bottom
+        // lane that contains either a single overlapping task or an aggregate.
+        this.options.row_lanes = Math.max(
+            2,
+            Math.floor(Number(this.options.row_lanes) || 2),
+        );
+        // <<< SR: Configurable row lanes -------------------------------------
         // <<< SR: Bar Aggregation ---------------------------------------------
       
         const CSS_VARIABLES = {
@@ -1238,7 +1247,15 @@ export default class Gantt {
             this.$container,
             'click',
             '.grid-row, .grid-header, .ignored-bar, .holiday-highlight',
-            () => {
+            (e) => {
+                // >>> SR: Aggregation popup Gantt outside click ---------------
+                // A nested popup Gantt lives inside this popup wrapper. Its grid
+                // clicks bubble to the parent Gantt container and would close
+                // the main popup. Ignore clicks that originated inside this
+                // Gantt instance's own popup wrapper; the nested Gantt can still
+                // handle and close its own popups.
+                if (this.$popup_wrapper?.contains(e.target)) return;
+                // <<< SR: Aggregation popup Gantt outside click ---------------
                 this.unselect_all();
                 this.hide_popup();
             },
@@ -1593,7 +1610,8 @@ export default class Gantt {
             });
         });
 
-        document.addEventListener('mouseup', () => {
+        // >>> SR: Aggregation popup Gantt ------------------------------------
+        this._onDocumentMouseup = () => {
             is_dragging = false;
             is_resizing_left = false;
             is_resizing_right = false;
@@ -1603,7 +1621,9 @@ export default class Gantt {
             // >>> SR: Date calculation after change fix ---------------------------------
             finish_bar_action();
             // <<< SR: Date calculation after change fix ---------------------------------
-        });
+        };
+        document.addEventListener('mouseup', this._onDocumentMouseup);
+        // <<< SR: Aggregation popup Gantt ------------------------------------
       // >>> SR: Date calculation after change fix ---------------------------------
         $.on(this.$svg, 'mouseup', () => {
             finish_bar_action();
@@ -1839,6 +1859,27 @@ export default class Gantt {
         this.$extras?.remove?.();
         this.popup?.hide?.();
     }
+
+    // >>> SR: Aggregation popup Gantt ----------------------------------------
+    /**
+     * Removes global listeners and DOM nodes created by this Gantt instance.
+     * This is mainly used for nested Gantt charts rendered inside aggregation
+     * popups, which are recreated whenever the popup content changes.
+     */
+    destroy() {
+        if (this._onDocumentMouseup) {
+            document.removeEventListener('mouseup', this._onDocumentMouseup);
+            this._onDocumentMouseup = null;
+        }
+
+        if (this._onDocClick) {
+            document.removeEventListener('mousedown', this._onDocClick, true);
+            this._onDocClick = null;
+        }
+
+        this.$container?.remove?.();
+    }
+    // <<< SR: Aggregation popup Gantt ----------------------------------------
     
   // >>> SR: Bar Aggregation ---------------------------------------------------
   // >>> SR: Date calculation Fix ----------------------------------------------
@@ -2184,34 +2225,50 @@ export default class Gantt {
         return byEndStartId(a,b);
       };
 
+      // >>> SR: Configurable row lanes ---------------------------------------
       /**
-       * Selects the visible top-lane tasks for one row.
-       * If no priority is present, the old interval-scheduling order is used.
-       * If priority is present, higher-priority tasks are selected first and
-       * lower-priority overlapping tasks are moved to the aggregation lane.
+       * Selects all visible upper-lane tasks for one row.
+       * The bottom lane is reserved for a single hidden task or an aggregate.
+       * If no priority is present and row_lanes is 2, this keeps the previous
+       * top-lane interval scheduling unchanged.
        */
-      const selectTopLane = (listRaw) => {
+      const selectUpperLanes = (listRaw, upperLaneCount) => {
         const rowHasPriority = listRaw.some(hasPriority);
         const candidates = listRaw.slice().sort(
             rowHasPriority ? byPriorityThenEndStartId : byEndStartId,
         );
-        const topLane = [];
 
-        for (const t of candidates) {
-          if (rowHasPriority) {
-            if (!topLane.some((selected) => overlaps(selected, t))) {
-              topLane.push(t);
-            }
-          } else {
-            const lastTopTask = topLane[topLane.length - 1];
-            if (!lastTopTask || t._start >= lastTopTask._end) {
-              topLane.push(t);
+        const lanes = Array.from({ length: upperLaneCount }, () => []);
+
+        if (rowHasPriority) {
+          for (const t of candidates) {
+            const targetLaneIndex = lanes.findIndex(
+                lane => !lane.some(selected => overlaps(selected, t)),
+            );
+            if (targetLaneIndex !== -1) {
+              lanes[targetLaneIndex].push(t);
+              t._lane = targetLaneIndex;
             }
           }
+        } else {
+          const remaining = new Set(candidates);
+          lanes.forEach((lane, laneIndex) => {
+            let lastEnd = null;
+            for (const t of candidates) {
+              if (!remaining.has(t)) continue;
+              if (lastEnd == null || t._start >= lastEnd) {
+                lane.push(t);
+                t._lane = laneIndex;
+                lastEnd = t._end;
+                remaining.delete(t);
+              }
+            }
+          });
         }
 
-        return topLane.sort(byStartThenId);
+        return lanes.flat().sort(byStartThenId);
       };
+      // <<< SR: Configurable row lanes ---------------------------------------
       // <<< SR: Priority aggregation top lane --------------------------------
       const byStartThenId = (a,b) => {
         if (+a._start !== +b._start) return +a._start - +b._start;
@@ -2232,16 +2289,19 @@ export default class Gantt {
       for (const [rowIndex, listRaw] of rows.entries()) {
         if (!listRaw.length) continue;
   
-        // 1) top lane via interval scheduling, optionally priority-aware
+        // 1) upper lanes via interval scheduling, optionally priority-aware
         // >>> SR: Priority aggregation top lane ------------------------------
-        const topLane = selectTopLane(listRaw);
+        // >>> SR: Configurable row lanes -------------------------------------
+        const bottomLane = this.get_aggregation_lane_index();
+        const topLane = selectUpperLanes(listRaw, bottomLane);
+        // <<< SR: Configurable row lanes -------------------------------------
         // <<< SR: Priority aggregation top lane ------------------------------
   
         const topSet = new Set(topLane);
         const hidden = listRaw.filter(t => !topSet.has(t)); // everything that is not at the top
   
         // Set lanes
-        topLane.forEach(t => { t._lane = 0; t._rowIndex = rowIndex; });
+        topLane.forEach(t => { t._rowIndex = rowIndex; });
         const rowHasAggregates = hidden.length > 0;
   
         if (!rowHasAggregates) {
@@ -2256,8 +2316,6 @@ export default class Gantt {
         const aggs = [];
         let curStart = null, curEnd = null;
         let curMembers = new Set();
-  
-        const bottomSingles = []; // collect visible individual tasks
   
         const flush = () => {
           if (!curStart) return;
@@ -2292,8 +2350,10 @@ export default class Gantt {
               _start: minStart,
               _end: maxEnd,
               _rowIndex: rowIndex,
-              _lane: 1,                 // always at the bottom lane
-              _clusterLanes: 2,         // (Relayout sets real value later)
+              // >>> SR: Configurable row lanes -------------------------------
+              _lane: bottomLane,         // always at the configured bottom lane
+              _clusterLanes: this.options.row_lanes, // (Relayout sets real value later)
+              // <<< SR: Configurable row lanes -------------------------------
               lineIndex: membersArr[0].lineIndex,
   
               draggable: false,
@@ -2333,9 +2393,10 @@ export default class Gantt {
             const single = membersArr[0];
             single._hidden = false;
             single._aggregatedBy = undefined;
-            single._lane = 1;
+            // >>> SR: Configurable row lanes ---------------------------------
+            single._lane = bottomLane;
+            // <<< SR: Configurable row lanes ---------------------------------
             single._rowIndex = rowIndex;
-            bottomSingles.push(single);
           }
   
           curStart = curEnd = null;
@@ -2392,7 +2453,12 @@ export default class Gantt {
         // hard resets for each row
         list.forEach(t => {
           t._rowIndex = rowIndex;
-          t._lane = undefined;
+          // >>> SR: Configurable row lanes -----------------------------------
+          // Keep lane assignments from compute_overlap_aggregates(). They
+          // already decide which upper lanes remain visible before lower tasks
+          // are aggregated into the configured bottom lane.
+          t._lane = Number.isInteger(t._lane) ? t._lane : undefined;
+          // <<< SR: Configurable row lanes -----------------------------------
           t._clusterLanes = 1; // Default
         });
   
@@ -2400,23 +2466,25 @@ export default class Gantt {
   
         const aggs = list.filter(t => t._isAggregate === true);
         const topsAll = list.filter(t => !t._isAggregate).sort(byStartThenId);
+        // >>> SR: Configurable row lanes -------------------------------------
+        const bottomLane = this.get_aggregation_lane_index();
+        const upperLaneCount = bottomLane;
+        // <<< SR: Configurable row lanes -------------------------------------
   
-        // 1) Aggregates always on lane 1, cluster=2 (they have a partner ‘above’)
+        // 1) Aggregates always on the bottom lane (they have partners above)
         aggs.forEach(a => {
-          a._lane = 1;
-          a._clusterLanes = 2;
+          // >>> SR: Configurable row lanes -----------------------------------
+          a._lane = bottomLane;
+          a._clusterLanes = this.options.row_lanes;
+          // <<< SR: Configurable row lanes -----------------------------------
         });
   
         // Top-Tasks:
-        // 2) Tasks that intersect an aggregate in time -> Lane 0, cluster=2 (partner of the aggregate)
+        // 2) Tasks that already got an upper lane stay there; tasks without a
+        // lane are placed in the first free upper lane.
         const hitAgg = [];
         const noAgg  = [];
         topsAll.forEach(t => (aggs.some(a => overlaps(t,a)) ? hitAgg : noAgg).push(t));
-  
-        hitAgg.forEach(t => {
-          t._lane = 0;
-          t._clusterLanes = 2;
-        });
   
         // 3) Collect allocations per lane (by time)
         const laneTasks = new Map(); // lane -> Array<Task>
@@ -2427,13 +2495,21 @@ export default class Gantt {
         };
   
         // Seed: already assigned (aggregate + hitAgg)
-        aggs.forEach(a => assignToLane(a, 1));
-        hitAgg.forEach(t => assignToLane(t, 0));
+        // >>> SR: Configurable row lanes -------------------------------------
+        aggs.forEach(a => assignToLane(a, bottomLane));
+        hitAgg.forEach(t => {
+          const lane = Number.isInteger(t._lane) && t._lane < upperLaneCount
+              ? t._lane
+              : 0;
+          assignToLane(t, lane);
+        });
+        // <<< SR: Configurable row lanes -------------------------------------
   
         // 4) Place noAgg in the first collision-free lane, sorted by start
-        noAgg.forEach(t => {
+        // >>> SR: Configurable row lanes -------------------------------------
+        const placeInFirstFreeLane = (t) => {
           let lane = 0;
-          while (true) {
+          while (lane < this.options.row_lanes) {
             const arr = laneTasks.get(lane) || [];
             const collides = arr.some(x => overlaps(t, x));
             if (!collides) {
@@ -2442,17 +2518,58 @@ export default class Gantt {
             }
             lane++;
           }
-        });
+
+          if (t._lane == null) {
+            assignToLane(t, bottomLane);
+          }
+        };
+
+        const unassignedNoAgg = [];
+        const noAggWithLane = noAgg.filter(
+            t => Number.isInteger(t._lane) && t._lane < this.options.row_lanes,
+        );
+        const noAggWithoutLane = noAgg.filter(t => !noAggWithLane.includes(t));
+
+        noAggWithLane
+            .sort((a, b) => a._lane - b._lane || byStartThenId(a, b))
+            .forEach(t => {
+              const arr = laneTasks.get(t._lane) || [];
+              if (!arr.some(x => overlaps(t, x))) {
+                assignToLane(t, t._lane);
+              } else {
+                t._lane = undefined;
+                unassignedNoAgg.push(t);
+              }
+            });
+
+        noAggWithoutLane
+            .concat(unassignedNoAgg)
+            .sort(byStartThenId)
+            .forEach(placeInFirstFreeLane);
+        // <<< SR: Configurable row lanes -------------------------------------
   
         // 5) define cluster lanes (visible only)
         const visible = list;
         visible.forEach(t => {
           const sameRow = visible.filter(o => o !== t && overlaps(o, t));
-          const laneSet = new Set([t._lane, ...sameRow.map(o => o._lane)]);
-          t._clusterLanes = Math.max(1, laneSet.size);
+          // >>> SR: Configurable row lanes -----------------------------------
+          const overlappingLanes = [t._lane, ...sameRow.map(o => o._lane)]
+              .filter(lane => Number.isInteger(lane));
+          t._clusterLanes = Math.max(0, ...overlappingLanes) + 1;
+          // <<< SR: Configurable row lanes -----------------------------------
         });
       });
     }
+
+    // >>> SR: Configurable row lanes -----------------------------------------
+    /**
+     * Returns the lane index reserved for single lower-row tasks or aggregate
+     * bars. The value depends on the configured row_lanes option.
+     */
+    get_aggregation_lane_index() {
+      return Math.max(1, this.options.row_lanes - 1);
+    }
+    // <<< SR: Configurable row lanes -----------------------------------------
 
     /**
      * Gets the total content height based on the number of rows and row height
@@ -2474,7 +2591,12 @@ export default class Gantt {
         const container = this.$container;
         const target = e.target;
   
-        if (container && container.contains(target)) return;
+        // >>> SR: Aggregation popup Gantt outside click -----------------------
+        if (
+            (container && container.contains(target)) ||
+            this.$popup_wrapper?.contains(target)
+        ) return;
+        // <<< SR: Aggregation popup Gantt outside click -----------------------
   
         // If clicked outside the gantt chard
         this.hide_popup();

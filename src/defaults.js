@@ -205,11 +205,16 @@ const DEFAULT_OPTIONS = { //TODO SR Info: This is the old "default_options"
     default_duration: 2, // Default duration in days for tasks without start / end date and duration
     start_of_week: 'monday', // 'monday' | 'sunday'
     include_today_in_padding: false, // Set to true to extend the padded date range until today is included.
-    stripe_rows: true, // Set to false to disable alternating row background colors.
+    stripe_rows: false, // Set to false to disable alternating row background colors.
     popup_aggregate_style: 'table', // 'list' | 'table'
     popup_aggregate_include_upper_row_tasks: true, // Includes tasks that are in the top lane of the row in the aggregate popup. Set to false to only include tasks inside the aggregation block.
     date_formatter: null, // null | function(date, format_string, lang)
     date_format_default: 'YYYY-MM-DD HH:mm:ss.SSS', // fallback format for date_utils.format(date)
+    row_lanes: 3, // Number of vertical lanes per row. The lowest lane is used for single lower tasks or aggregate bars.
+    // >>> SR: Aggregation popup Gantt ----------------------------------------
+    popup_aggregate_expand_tasks: false, // Shows a compact Gantt next to the aggregation popup task list.
+    popup_aggregate_gantt_width: 360, // Width in px for the Gantt shown inside aggregation popups.
+    // <<< SR: Aggregation popup Gantt ----------------------------------------
     // <<< SR: Bar Aggregation -------------------------------------------------
 };
 
