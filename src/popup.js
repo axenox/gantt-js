@@ -337,6 +337,8 @@ export default class Popup {
         readonly_progress: true,
         move_dependencies: false,
         popup: false,
+        stripe_rows: true,
+        holidays: null,
         //popup_on: 'click', //TODO SR: currently dont work.
         popup_aggregate_expand_tasks: false,
         popup_aggregate_include_upper_row_tasks: false,
@@ -549,7 +551,7 @@ export default class Popup {
   
         const start_date = date_utils.format(
             m._start,
-            'MMM dd',
+            'dd.MM.yy',
             this.gantt.options.language,
         );
         // >>> SR: Date calculation Fix ----------------------------------------
@@ -558,25 +560,25 @@ export default class Popup {
         const end_date = date_utils.format(
             //date_utils.add(m._end, -1, 'second'),
             date_utils.add(org_end, -1, 'second'), //TODO SR: Date without hours fix. Test it.
-            'MMM dd',
+            'dd.MM.yy',
             this.gantt.options.language,
         );
   
         if (hasRealStart || hasRealEnd) {
           if (hasRealStart && hasRealEnd) {
             rangeText =
-                `${start_date} - ${end_date} (${ogTask.actual_duration} Tage${ogTask.ignored_duration ? ' + ' + ogTask.ignored_duration + ' Ausgeschlossen' : ''})`;
+                ` (${start_date} - ${end_date}) (${ogTask.actual_duration} Tage${ogTask.ignored_duration ? ' + ' + ogTask.ignored_duration + ' Ausgeschlossen' : ''})`;
           } else if (hasRealStart && !hasRealEnd) {
             rangeText =
-                `${start_date} - ... `;
+                ` (${start_date} - ... )`;
           } else if (hasRealEnd && !hasRealStart) {
             rangeText =
-                `... - ${end_date}`;
+                ` (... - ${end_date})`;
           }
         }
   
         const textSpan = document.createElement('span');
-        textSpan.textContent = labelText + ' [ ' + rangeText + ' ]';
+        textSpan.textContent = labelText + rangeText;
         li.appendChild(textSpan);
   
         ul.appendChild(li);
