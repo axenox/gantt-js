@@ -82,6 +82,9 @@ export default class Gantt {
     setup_options(options) {
         this.original_options = options;
         if (options?.view_modes) {
+            // >>> SR: Respect configured initial view mode --------------------
+            const requested_view_mode = options.view_mode;
+            // <<< SR: Respect configured initial view mode --------------------
             options.view_modes = options.view_modes.map((mode) => {
                 if (typeof mode === 'string') {
                     const predefined_mode = DEFAULT_VIEW_MODES.find(
@@ -96,8 +99,19 @@ export default class Gantt {
                 }
                 return mode;
             });
-            // automatically set the view mode to the first option
-            options.view_mode = options.view_modes[0];
+            // >>> SR: Respect configured initial view mode --------------------
+            // Keep an explicitly configured view_mode (for example 'Quartale')
+            // instead of always forcing the first view_modes entry. If no valid
+            // view_mode is configured, fall back to the first available view.
+            const resolved_view_mode =
+                typeof requested_view_mode === 'string'
+                    ? options.view_modes.find(
+                          (mode) => mode?.name === requested_view_mode,
+                      )
+                    : requested_view_mode;
+
+            options.view_mode = resolved_view_mode || options.view_modes[0];
+            // <<< SR: Respect configured initial view mode --------------------
         }
         this.options = { ...DEFAULT_OPTIONS, ...options };
 
