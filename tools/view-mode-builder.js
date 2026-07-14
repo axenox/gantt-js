@@ -106,6 +106,9 @@ function buildViewModesFromSimpleConfig(simpleConfig) {
     return {
       name, //
       padding: vm.padding, //
+      // >>> SR: Today button left scroll padding ----------------------------
+      today_button_left_scroll_padding: vm.today_button_left_scroll_padding ?? undefined,
+      // <<< SR: Today button left scroll padding ----------------------------
       step: vm.step, //
       date_format: vm.date_format, //
       column_width: vm.column_width ?? undefined, //

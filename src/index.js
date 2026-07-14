@@ -1219,8 +1219,47 @@ export default class Gantt {
 
     scroll_current() {
         let res = this.get_closest_date();
-        if (res) this.set_scroll_position(res[0]);
+        // >>> SR: Today button left scroll padding ---------------------------
+        if (res) this.set_scroll_position(this.get_today_scroll_target_date());
+        // <<< SR: Today button left scroll padding ---------------------------
     }
+
+    // >>> SR: Today button left scroll padding -------------------------------
+    /**
+     * Returns the date that should be placed at the left side of the viewport
+     * when the Today button is used. The current date stays highlighted at its
+     * real position, while this optional padding moves it further to the right.
+     * @returns {Date}
+     */
+    get_today_scroll_target_date() {
+        const today = new Date();
+        const padding = this.get_today_button_left_scroll_padding();
+        if (!padding) return today;
+
+        const target = date_utils.add(today, -padding.duration, padding.scale);
+        return target < this.gantt_start ? this.gantt_start : target;
+    }
+
+    /**
+     * Reads and parses the current view mode's today-button left scroll padding.
+     * The value uses the same format as view mode padding. If an array is given,
+     * the left-side value is used.
+     * @returns {{duration: number, scale: string}|null}
+     */
+    get_today_button_left_scroll_padding() {
+        const padding_config = this.config.view_mode?.today_button_left_scroll_padding;
+        const left_padding = Array.isArray(padding_config)
+            ? padding_config[0]
+            : padding_config;
+
+        if (!left_padding) return null;
+
+        const parsed = date_utils.parse_duration(left_padding);
+        if (!parsed?.duration || !parsed?.scale) return null;
+
+        return parsed;
+    }
+    // <<< SR: Today button left scroll padding -------------------------------
 
     get_closest_date() {
         let now = new Date();
@@ -1996,15 +2035,36 @@ export default class Gantt {
 
     const today_start = date_utils.today();
     const today_end = date_utils.add(today_start, 1, 'day');
+    // >>> SR: Today button left scroll padding -------------------------------
+    const today_scroll_start = this.get_today_scroll_padding_start_date(today_start);
+    // <<< SR: Today button left scroll padding -------------------------------
 
-    if (today_start < this.gantt_start) {
-      this.gantt_start = date_utils.start_of(today_start, this.config.unit);
+    // >>> SR: Today button left scroll padding -------------------------------
+    if (today_scroll_start < this.gantt_start) {
+      this.gantt_start = date_utils.start_of(today_scroll_start, this.config.unit);
     }
+    // <<< SR: Today button left scroll padding -------------------------------
 
     if (today_end > this.gantt_end) {
       this.gantt_end = today_end;
     }
   }
+
+  // >>> SR: Today button left scroll padding ---------------------------------
+  /**
+   * Returns the earliest date that must be included when today is added to the
+   * rendered Gantt range. This keeps enough left-side room for the Today button
+   * scroll padding if today was outside the original task interval.
+   * @param today_start
+   * @returns {Date}
+   */
+  get_today_scroll_padding_start_date(today_start) {
+    const padding = this.get_today_button_left_scroll_padding?.();
+    if (!padding) return today_start;
+
+    return date_utils.add(today_start, -padding.duration, padding.scale);
+  }
+  // <<< SR: Today button left scroll padding ---------------------------------
 
   get_date_tick_for_date(date) {
     if (!this.dates?.length) return null;

@@ -67,6 +67,9 @@ const DEFAULT_VIEW_MODES = [
     {
         name: 'Day',
         padding: '7d',
+        // >>> SR: Today button left scroll padding --------------------------
+        today_button_left_scroll_padding: null,
+        // <<< SR: Today button left scroll padding --------------------------
         date_format: 'YYYY-MM-dd',
         step: '1d',
         lower_text: (d, ld, lang) =>
@@ -82,6 +85,9 @@ const DEFAULT_VIEW_MODES = [
     {
         name: 'Week',
         padding: '1m',
+        // >>> SR: Today button left scroll padding --------------------------
+        today_button_left_scroll_padding: null,
+        // <<< SR: Today button left scroll padding --------------------------
         step: '7d',
         date_format: 'YYYY-MM-dd',
         column_width: 140,
@@ -96,6 +102,9 @@ const DEFAULT_VIEW_MODES = [
     {
         name: 'Month',
         padding: '2m',
+        // >>> SR: Today button left scroll padding --------------------------
+        today_button_left_scroll_padding: null,
+        // <<< SR: Today button left scroll padding --------------------------
         step: '1m',
         column_width: 120,
         date_format: 'YYYY-MM',
@@ -110,6 +119,9 @@ const DEFAULT_VIEW_MODES = [
     {
         name: 'Year',
         padding: '2y',
+        // >>> SR: Today button left scroll padding --------------------------
+        today_button_left_scroll_padding: null,
+        // <<< SR: Today button left scroll padding --------------------------
         step: '1y',
         column_width: 120,
         date_format: 'YYYY',
