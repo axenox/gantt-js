@@ -143,7 +143,7 @@ const DEFAULT_OPTIONS = { //TODO SR Info: This is the old "default_options"
     upper_header_height: 45, //TODO SR: There is no longer a ‘header_height’. Now it is "upper + lower + 10px"
     lower_header_height: 30,
     snap_at: null,
-    infinite_padding: true,
+    infinite_padding: false, //TODO SR: At Wheel scroll it automatically expands the Gantt borders, regards of if we scroll in the middle or at the border.
     holidays: { 'var(--g-weekend-highlight-color)': 'weekend' },
     ignore: [],
     language: 'en',
@@ -202,6 +202,9 @@ const DEFAULT_OPTIONS = { //TODO SR Info: This is the old "default_options"
     scroll_to: 'today',
     show_expected_progress: false,
     today_button: true,
+    // >>> SR: Today missing callback -----------------------------------------
+    on_today_missing: null, // function(today, gantt_start, gantt_end)
+    // <<< SR: Today missing callback -----------------------------------------
     view_mode: 'Day',
     view_mode_select: false,
     view_modes: DEFAULT_VIEW_MODES,
@@ -217,6 +220,10 @@ const DEFAULT_OPTIONS = { //TODO SR Info: This is the old "default_options"
     default_duration: 2, // Default duration in days for tasks without start / end date and duration
     start_of_week: 'monday', // 'monday' | 'sunday'
     include_today_in_padding: false, // Set to true to extend the padded date range until today is included.
+    // >>> SR: Global minimum view interval ------------------------------------
+    global_min_view_start: null, // Minimum date that should be included before view padding is applied.
+    global_min_view_end: null, // Maximum date that should be included before view padding is applied.
+    // <<< SR: Global minimum view interval ------------------------------------
     stripe_rows: false, // Set to false to disable alternating row background colors.
     popup_aggregate_style: 'list', // 'list' | 'table'
     popup_aggregate_include_upper_row_tasks: true, // Includes tasks that are in the top lane of the row in the aggregate popup. Set to false to only include tasks inside the aggregation block.

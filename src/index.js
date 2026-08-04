@@ -71,6 +71,9 @@ export default class Gantt {
 
         // >>> SR: Bar Aggregation ---------------------------------------------
         this._initialScroll = true;
+        // >>> SR: Refresh without scroll animation -----------------------------
+        this._suppress_scroll_strategy = false;
+        // <<< SR: Refresh without scroll animation -----------------------------
         //TODO SR: Why is the infinite padding is set to false here?
       
         // >>> SR: Date calculation Fix ----------------------------------------
@@ -328,10 +331,34 @@ export default class Gantt {
         }
     }
 
-    refresh(tasks) {
+    // >>> SR: Refresh scroll control -----------------------------------------
+    /**
+     * Refreshes the Gantt tasks. By default, the current horizontal scroll
+     * position is preserved so repeated data refreshes do not jump back to
+     * `scroll_to` (for example `today`).
+     *
+     * @param tasks
+     * @param scroll_after_refresh false keeps the exact current pixel position;
+     * true applies options.scroll_to; a string or Date is used as explicit
+     * scroll target.
+     */
+    refresh(tasks, scroll_after_refresh = false) {
         this.setup_tasks(tasks);
-        this.change_view_mode();
+
+        if (scroll_after_refresh === false || scroll_after_refresh == null) {
+            this.change_view_mode(undefined, true, true);
+            return;
+        }
+
+        const original_scroll_to = this.options.scroll_to;
+        if (scroll_after_refresh !== true) {
+            this.options.scroll_to = scroll_after_refresh;
+        }
+
+        this.change_view_mode(undefined, false);
+        this.options.scroll_to = original_scroll_to;
     }
+    // <<< SR: Refresh scroll control -----------------------------------------
 
     // >>> SR: Date calculation after change fix -------------------------------
     refresh_overlap_aggregates_after_drop() {
@@ -355,7 +382,11 @@ export default class Gantt {
         bar.refresh();
     }
 
-    change_view_mode(mode = this.options.view_mode, maintain_pos = false) {
+    change_view_mode(
+        mode = this.options.view_mode,
+        maintain_pos = false,
+        maintain_exact_scroll_left = false,
+    ) {
         if (typeof mode === 'string') {
             mode = this.options.view_modes.find((d) => d.name === mode);
         }
@@ -366,11 +397,15 @@ export default class Gantt {
             this.options.scroll_to = null;
 
           // >>> SR: Date calculation Fix -------------------------------------------
-            anchor_date = date_utils.add(
-                this.gantt_start,
-                (old_pos / this.config.column_width) * this.config.step,
-                this.config.unit,
-            );
+            if (!maintain_exact_scroll_left) {
+                anchor_date = this.get_date_by_position
+                    ? this.get_date_by_position(old_pos)
+                    : date_utils.add(
+                        this.gantt_start,
+                        (old_pos / this.config.column_width) * this.config.step,
+                        this.config.unit,
+                    );
+            }
           // <<< SR: Date calculation Fix -------------------------------------------
         }
         this.options.view_mode = mode.name;
@@ -381,11 +416,31 @@ export default class Gantt {
         // Scroll position is preserved separately below when maintain_pos is true.
         this.setup_dates(false);
         // <<< SR: Date calculation Fix ---------------------------------------------
-        this.render();
+        // >>> SR: Refresh without scroll animation -----------------------------
+        // When the current position is maintained, render must not start the
+        // normal scroll strategy first. Otherwise refresh() briefly scrolls to
+        // the configured target/start and then animates back to the old position.
+        this._suppress_scroll_strategy = maintain_pos;
+        try {
+            this.render();
+        } finally {
+            this._suppress_scroll_strategy = false;
+        }
+        // <<< SR: Refresh without scroll animation -----------------------------
         if (maintain_pos) {
           // >>> SR: Date calculation Fix -------------------------------------------
-            if (anchor_date) {
-                this.set_scroll_position(anchor_date);
+            // >>> SR: Refresh exact scroll position --------------------------------
+            if (maintain_exact_scroll_left) {
+                // refresh(tasks) is called very often while an external SAP table
+                // scrolls. Keep the exact browser scrollLeft value instead of
+                // converting pixels -> date -> pixels, because that conversion uses
+                // the normal scroll offset and can drift a few pixels per refresh.
+                this.$container.scrollLeft = old_pos;
+            } else if (anchor_date) {
+            // <<< SR: Refresh exact scroll position --------------------------------
+                // >>> SR: Refresh without scroll animation ---------------------
+                this.set_scroll_position(anchor_date, false);
+                // <<< SR: Refresh without scroll animation ---------------------
             } else {
                 this.$container.scrollLeft = old_pos;
             }
@@ -431,6 +486,13 @@ export default class Gantt {
                 gantt_end = task._end;
             }
         }
+
+        // >>> SR: Global minimum view interval -------------------------------
+        ({ gantt_start, gantt_end } = this.apply_global_min_view_interval(
+            gantt_start,
+            gantt_end,
+        ));
+        // <<< SR: Global minimum view interval -------------------------------
 
         gantt_start = date_utils.start_of(gantt_start, this.config.unit);
         gantt_end = date_utils.start_of(gantt_end, this.config.unit);
@@ -505,6 +567,49 @@ export default class Gantt {
             this.config.view_mode.date_format || this.options.date_format;
         this.gantt_start.setHours(0, 0, 0, 0);
     }
+
+    // >>> SR: Global minimum view interval -----------------------------------
+    /**
+     * Extends the task-derived base date range with configured global minimum
+     * view boundaries before the active view padding is applied.
+     * @param gantt_start
+     * @param gantt_end
+     * @returns {{gantt_start: Date, gantt_end: Date}}
+     */
+    apply_global_min_view_interval(gantt_start, gantt_end) {
+        const global_start = this.get_global_min_view_date('global_min_view_start');
+        const global_end = this.get_global_min_view_date('global_min_view_end');
+
+        if (global_start && (!gantt_start || gantt_start > global_start)) {
+            gantt_start = global_start;
+        }
+
+        if (global_end && (!gantt_end || gantt_end < global_end)) {
+            gantt_end = global_end;
+        }
+
+        return { gantt_start, gantt_end };
+    }
+
+    /**
+     * Parses one configured global minimum view boundary. The option accepts
+     * the same values as task start/end, for example '2027-07-01'.
+     * @param option_name
+     * @returns {Date|null}
+     */
+    get_global_min_view_date(option_name) {
+        const value = this.options?.[option_name];
+        if (!value) return null;
+
+        const date = date_utils.parse(value);
+        if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+            console.warn(`${option_name} must be a valid date value. Ignoring it.`);
+            return null;
+        }
+
+        return date;
+    }
+    // <<< SR: Global minimum view interval -----------------------------------
 
     setup_date_values() {
         let cur_date = this.gantt_start;
@@ -706,7 +811,9 @@ export default class Gantt {
             let $today_button = document.createElement('button');
             $today_button.classList.add('today-button');
             $today_button.textContent = 'Today';
-            $today_button.onclick = this.scroll_current.bind(this);
+            // >>> SR: Today missing callback ----------------------------------
+            $today_button.onclick = this.scroll_current.bind(this, true, true);
+            // <<< SR: Today missing callback ----------------------------------
             this.$side_header.prepend($today_button);
             this.$today_button = $today_button;
         }
@@ -1152,7 +1259,15 @@ export default class Gantt {
         }
     }
 
-    set_scroll_position(date) {
+    // >>> SR: Refresh without scroll animation ---------------------------------
+    /**
+     * Scrolls the Gantt horizontally to a date or keyword.
+     * @param date Date, string keyword, or parsable date string.
+     * @param animate true keeps the existing smooth scroll behavior; false sets
+     * the final scroll position immediately, used by refresh position restore.
+     */
+    set_scroll_position(date, animate = true) {
+    // <<< SR: Refresh without scroll animation ---------------------------------
         if (this.options.infinite_padding && (!date || date === 'start')) {
             let [min_start, ..._] = this.get_start_end_positions();
             this.$container.scrollLeft = min_start;
@@ -1163,7 +1278,7 @@ export default class Gantt {
         } else if (date === 'end') {
             date = this.gantt_end;
         } else if (date === 'today') {
-            return this.scroll_current();
+            return this.scroll_current(animate);
         } else if (typeof date === 'string') {
             date = date_utils.parse(date);
         }
@@ -1175,10 +1290,17 @@ export default class Gantt {
         const scroll_pos = this.get_position_by_date(date);
         // <<< SR: Date calculation Fix ---------------------------------------------
 
-        this.$container.scrollTo({
-            left: scroll_pos - this.config.column_width / 6,
-            behavior: 'smooth',
-        });
+        // >>> SR: Refresh without scroll animation -----------------------------
+        const scroll_left = scroll_pos - this.config.column_width / 6;
+        if (animate) {
+            this.$container.scrollTo({
+                left: scroll_left,
+                behavior: 'smooth',
+            });
+        } else {
+            this.$container.scrollLeft = scroll_left;
+        }
+        // <<< SR: Refresh without scroll animation -----------------------------
 
         // Calculate current scroll position's upper text
         if (this.$current) {
@@ -1217,11 +1339,35 @@ export default class Gantt {
         this.$current = $el;
     }
 
-    scroll_current() {
+    // >>> SR: Refresh without scroll animation ---------------------------------
+    /**
+     * Scrolls to the current day. The optional animate flag allows refresh()
+     * position restoration to reuse the same date logic without smooth scrolling.
+     * @param animate true keeps the existing smooth scroll behavior.
+     * @param trigger_today_missing true calls on_today_missing when today is outside the Gantt interval.
+     */
+    scroll_current(animate = true, trigger_today_missing = false) {
+    // <<< SR: Refresh without scroll animation ---------------------------------
         let res = this.get_closest_date();
         // >>> SR: Today button left scroll padding ---------------------------
-        if (res) this.set_scroll_position(this.get_today_scroll_target_date());
+        if (res) {
+            this.set_scroll_position(this.get_today_scroll_target_date(), animate);
+            return;
+        }
         // <<< SR: Today button left scroll padding ---------------------------
+        // >>> SR: Today missing callback --------------------------------------
+        const today = new Date();
+        if (
+            trigger_today_missing &&
+            (today < this.gantt_start || today > this.gantt_end)
+        ) {
+            this.trigger_event('today_missing', [
+                today,
+                this.gantt_start,
+                this.gantt_end,
+            ]);
+        }
+        // <<< SR: Today missing callback --------------------------------------
     }
 
     // >>> SR: Today button left scroll padding -------------------------------
@@ -2683,6 +2829,10 @@ export default class Gantt {
      * Calls set_scroll_position according to the "keep_scroll_position" option.
      */
     set_scroll_strategy(scroll_to) {
+      // >>> SR: Refresh without scroll animation -------------------------------
+      if (this._suppress_scroll_strategy) return;
+      // <<< SR: Refresh without scroll animation -------------------------------
+
       if (this._initialScroll || !this.options.keep_scroll_position) {
         this.set_scroll_position(scroll_to);
       }
