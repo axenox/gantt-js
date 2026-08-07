@@ -328,7 +328,6 @@ export default class Popup {
         lower_header_height: 25,
         container_height: 'auto',
         infinite_padding: false,
-        keep_scroll_position: false,
         scroll_to: 'start',
         view_mode_select: this.gantt.options.view_mode_select,
         today_button: this.gantt.options.today_button,

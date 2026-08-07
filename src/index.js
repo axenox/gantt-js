@@ -70,7 +70,6 @@ export default class Gantt {
         });
 
         // >>> SR: Bar Aggregation ---------------------------------------------
-        this._initialScroll = true;
         // >>> SR: Refresh without scroll animation -----------------------------
         this._suppress_scroll_strategy = false;
         // <<< SR: Refresh without scroll animation -----------------------------
@@ -644,10 +643,11 @@ export default class Gantt {
         this.make_arrows();
         this.map_arrows_on_bars();
         this.set_dimensions();
-        // >>> SR: Bar Aggregation ---------------------------------------------
-        //this.set_scroll_position(this.options.scroll_to); //is called inside set_scroll_strategy()
-        this.set_scroll_strategy(this.options.scroll_to);
-        // >>> SR: Bar Aggregation ---------------------------------------------
+        // >>> SR: Removed obsolete scroll option ------------------------------
+        if (!this._suppress_scroll_strategy) {
+            this.set_scroll_position(this.options.scroll_to);
+        }
+        // <<< SR: Removed obsolete scroll option ------------------------------
     }
 
     setup_layers() {
@@ -2825,31 +2825,6 @@ export default class Gantt {
       document.addEventListener('mousedown', this._onDocClick, true);
     }
 
-    /**
-     * Calls set_scroll_position according to the "keep_scroll_position" option.
-     */
-    set_scroll_strategy(scroll_to) {
-      // >>> SR: Refresh without scroll animation -------------------------------
-      if (this._suppress_scroll_strategy) return;
-      // <<< SR: Refresh without scroll animation -------------------------------
-
-      if (this._initialScroll || !this.options.keep_scroll_position) {
-        this.set_scroll_position(scroll_to);
-      }
-  
-      if (this._initialScroll) {
-        //TODO SR: Loading state check is currently hard coded. Make it better.
-        const hasRealTasks =
-            this.tasks.length > 0 && this.tasks[0].name !== "Loading...";
-  
-        if (hasRealTasks) {
-          this._initialScroll = false;
-        }
-      } else if (this.options.keep_scroll_position && this.tasks.length === 0) {
-        // focuses on today if there are no tasks
-        this._initialScroll = true;
-      }
-    }
   // <<< SR: Bar Aggregation ---------------------------------------------------
 }
 
