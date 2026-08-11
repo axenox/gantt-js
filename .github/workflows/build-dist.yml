@@ -23,7 +23,7 @@ jobs:
             - name: Install dependencies
               run: npm install
 
-            - name: Build frappe-gantt dist
+            - name: Build frappe-gantt-aggregation dist
               run: npm run build
 
             - name: Commit updated dist files

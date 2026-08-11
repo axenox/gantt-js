@@ -1,6 +1,6 @@
 {
     "name": "frappe-gantt-aggregation",
-    "version": "1.0",
+    "version": "1.0.1",
     "description": "Upgraded version of frappe-gantt with support of multiple tasks per row and other features.",
     "main": "./dist/frappe-gantt-aggregation.umd.js",
     "module": "./dist/frappe-gantt-aggregation.es.js",
@@ -21,6 +21,8 @@
         "dist",
         "src/styles",
         "tools/view-mode-builder.js",
+        "tools/color-utils.js",
+        "assets",
         "README.md",
         "license.txt"
     ],
@@ -42,7 +44,7 @@
         "timeline-aggregation",
         "multiple-tasks-per-row"
     ],
-    "author": "Faris Ansari, Sergej Riel",
+    "author": "Sergej Riel",
     "license": "MIT",
     "bugs": {
         "url": "https://github.com/axenox/gantt-js/issues"

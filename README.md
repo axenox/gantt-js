@@ -6,7 +6,7 @@
 
 </div>
 
-![Aggregations Image](.github/frappe-gantt-aggregation-image.png)
+![Aggregations Image](assets/frappe-gantt-aggregation-image.png)
 
 This library is a fork of [Frappe Gantt](https://github.com/frappe/gantt). 
 It has been modified to support multiple tasks in the same row, with a special "aggregation" bar to indicate overlapping tasks.
