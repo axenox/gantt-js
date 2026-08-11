@@ -16,6 +16,7 @@ export default class Gantt {
         this.setup_tasks(tasks);
         this.change_view_mode();
         this.bind_events();
+        this.date_utils = date_utils; // expose date_utils for external usage
     }
 
     setup_wrapper(element) {
@@ -1527,6 +1528,7 @@ export default class Gantt {
             bar_action_started = false;
         };
 
+        //TODO SR: It should not be triggered if readonly.
         const finish_bar_action = () => {
             this.bar_being_dragged = null;
 
@@ -1777,7 +1779,20 @@ export default class Gantt {
         $.on(this.$svg, 'mousemove', (e) => {
             if (!action_in_progress()) return;
             const dx = (e.offsetX || e.layerX) - x_on_start;
-
+            // >>> SR: Draggable -----------------------------------------------
+            // draggable check: if any of the bars is not draggable, cancel the action
+            let bDraggable = true;
+            bars.forEach((bar) => {
+              if (bar.task.draggable === false) {
+                bDraggable = false;
+              }
+            });
+            if (bDraggable === false) {
+              e.preventDefault();
+              e.stopPropagation();
+              return false;
+            }
+            // <<< SR: Draggable -----------------------------------------------
             bars.forEach((bar) => {
                 const $bar = bar.$bar;
                 $bar.finaldx = this.get_snap_position(dx, $bar.ox);
