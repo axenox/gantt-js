@@ -1,3 +1,7 @@
+// >>> SR: Bundled moment dependency ------------------------------------------
+import moment from 'moment';
+// <<< SR: Bundled moment dependency ------------------------------------------
+
 const YEAR = 'year';
 const MONTH = 'month';
 const DAY = 'day';
