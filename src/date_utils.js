@@ -74,7 +74,10 @@ const date_utils = {
                     time_parts[3] = parseFloat(time_parts[3]) * 1000;
                 }
                 vals = vals.concat(time_parts);
+            } else {
+                vals = vals.concat([0, 0, 0, 0]);
             }
+
             return new Date(...vals);
           // >>> SR: Bar Aggregation -------------------------------------------
           // TODO SR: It comes from the adjusted old version. This adds 1 hour and breaks the "date without hours" logic
@@ -178,7 +181,7 @@ const date_utils = {
         let yearDiff = date_a.getFullYear() - date_b.getFullYear();
         let monthDiff = date_a.getMonth() - date_b.getMonth();
         // calculate extra
-        monthDiff += (days % 30) / 30;
+        monthDiff += date_a.getDate() / 31;
 
         /* If monthDiff is negative, date_b is in an earlier month than
         date_a and thus subtracted from the year difference in months */
@@ -288,6 +291,18 @@ const date_utils = {
             date.getMinutes(),
             date.getSeconds(),
             date.getMilliseconds(),
+        ];
+    },
+
+    get_utc_date_values(date) {
+        return [
+            date.getUTCFullYear(),
+            date.getUTCMonth(),
+            date.getUTCDate(),
+            date.getUTCHours(),
+            date.getUTCMinutes(),
+            date.getUTCSeconds(),
+            date.getUTCMilliseconds(),
         ];
     },
 

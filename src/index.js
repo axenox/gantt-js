@@ -382,15 +382,15 @@ export default class Gantt {
         bar.refresh();
     }
 
-    change_view_mode(
-        mode = this.options.view_mode,
-        maintain_pos = false,
-        maintain_exact_scroll_left = false,
-    ) {
-        if (typeof mode === 'string') {
-            mode = this.options.view_modes.find((d) => d.name === mode);
-        }
-        let old_pos, old_scroll_op, anchor_date;
+    change_view_mode(mode = this.options.view_mode, maintain_pos = false) {
+        const name = typeof mode === 'string' ? mode : mode.name;
+        const custom_mode =
+            this.options.view_modes.find((d) => d.name === name) || {};
+        const default_mode =
+            DEFAULT_VIEW_MODES.find((d) => d.name === name) || {};
+        mode = { ...default_mode, ...custom_mode };
+
+        let old_pos, old_scroll_op;
         if (maintain_pos) {
             old_pos = this.$container.scrollLeft;
             old_scroll_op = this.options.scroll_to;
@@ -916,17 +916,30 @@ export default class Gantt {
                         this.config.ignored_function(d))
                 )
                     continue;
-                if (check_highlight(d) || (extra_func && extra_func(d))) {
-                  // >>> SR: Date calculation Fix ------------------------------
-                    const x = this.get_position_by_date(d);
-                  // >>> SR: Date calculation Fix ------------------------------
-                    const height = this.grid_height - this.config.header_height;
-                    // >>> SR: Bar Aggregation ---------------------------------
-                    const d_formatted = date_utils
-                        .format(d, 'YYYY-MM-dd', this.options.language)
-                        .replace(' ', '_');
-                    // <<< SR: Bar Aggregation ---------------------------------
-
+                const is_holiday =
+                    check_highlight(d) || (extra_func && extra_func(d));
+                const x =
+                    (date_utils.diff(d, this.gantt_start, this.config.unit) /
+                        this.config.step) *
+                    this.config.column_width;
+                const height = this.grid_height - this.config.header_height;
+                const d_formatted = date_utils
+                    .format(d, 'YYYY-MM-DD', this.options.language)
+                    .replace(' ', '_');
+                const config = {
+                    x: Math.round(x),
+                    y: this.config.header_height,
+                    width:
+                        this.config.column_width /
+                        date_utils.convert_scales(
+                            this.config.view_mode.step,
+                            'day',
+                        ),
+                    height,
+                    append_to: this.layers.grid,
+                };
+                let column;
+                if (is_holiday) {
                     if (labels[d]) {
                         let label = this.create_el({
                             classes: 'holiday-label ' + 'label_' + d_formatted,
@@ -934,19 +947,19 @@ export default class Gantt {
                         });
                         label.textContent = labels[d];
                     }
-                    createSVG('rect', {
-                        x: Math.round(x),
-                        y: this.config.header_height,
-                        width:
-                            this.config.column_width /
-                            date_utils.convert_scales(
-                                this.config.view_mode.step,
-                                'day',
-                            ),
-                        height,
-                        class: 'holiday-highlight ' + d_formatted,
+                    column = createSVG('rect', {
+                        ...config,
+                        class:
+                            'holiday-highlight ' +
+                            d_formatted +
+                            (this.options.hover_on_date ? ' grid-column' : ''),
                         style: `fill: ${color};`,
                         append_to: this.layers.grid,
+                    });
+                } else if (this.options.hover_on_date) {
+                    column = createSVG('rect', {
+                        ...config,
+                        class: 'grid-column',
                     });
                 }
             }
@@ -960,7 +973,7 @@ export default class Gantt {
      */
     highlight_current() {
         const res = this.get_closest_date();
-        if (!res) return;
+        if (!res || !res[1]) return;
 
         const [_, el] = res;
         el.classList.add('current-date-highlight');
@@ -1077,6 +1090,9 @@ export default class Gantt {
         });
         this.upperTexts = Array.from(
             this.$container.querySelectorAll('.upper-text'),
+        );
+        this.lowerTexts = Array.from(
+            this.$container.querySelectorAll('.lower-text'),
         );
     }
 
@@ -1533,6 +1549,10 @@ export default class Gantt {
                 this.bar_being_dragged = true;
         });
 
+        $.on(this.$svg, 'mousedown', '.grid-column', (e) => {
+            this.trigger_event('date_click', [this.getDateFromClick(e)]);
+        });
+
         $.on(this.$svg, 'mousedown', '.bar-wrapper, .handle', (e, element) => {
             const bar_wrapper = $.closest('.bar-wrapper', element);
             if (element.classList.contains('left')) {
@@ -1866,7 +1886,9 @@ export default class Gantt {
             }, []);
 
             out = out.concat(deps);
-            to_process = deps.filter((d) => !to_process.includes(d));
+            to_process = deps.filter(
+                (d) => !to_process.includes(d) && !out.includes(d),
+            );
         }
 
         return out.filter(Boolean);
@@ -1968,6 +1990,24 @@ export default class Gantt {
         if (this.options['on_' + event]) {
             this.options['on_' + event].apply(this, args);
         }
+    }
+
+    view_is(view) {
+        return this.options.view_mode.name === view;
+    }
+
+    getDateFromClick(event) {
+        const rect = this.$svg.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const columns = this.lowerTexts;
+        if (!columns.length) return null;
+
+        const index = Math.floor(x / this.config.column_width);
+        const targetCell = columns[index];
+        if (!targetCell) return null;
+
+        const match = targetCell.className.match(/date_(\d{4}-\d{2}-\d{2})/);
+        return match ? match[1] : null;
     }
 
     /**

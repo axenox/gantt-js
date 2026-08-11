@@ -54,29 +54,25 @@ export default class Bar {
         // <<< SR: Bar Aggregation ---------------------------------------------
         
         this.image_size = this.height - 5;
-        
-        // >>> SR: Bar Aggregation ---------------------------------------------
-        //this.task._start = date_utils.parse(this.task.start);
-        //this.task._end = date_utils.parse(this.task.end);
-      
-        // attention, this.task.end is nullable!
-        // >>> SR: Date calculation Fix ------------------------------------
-        // Use the already normalized local _end date. Native new Date('YYYY-MM-DD')
-        // parses as UTC and can create small offsets around DST changes.
-        this.task.orig_end = this.task.end ? date_utils.clone(this.task._end) : null; //TODO SR: Date without hours fix. Test it.
-        // <<< SR: Date calculation Fix ------------------------------------
-        // <<< SR: Bar Aggregation ---------------------------------------------
+        if (!this.task._start) this.task._start = new Date(this.task.start);
+        if (!this.task._end) this.task._end = new Date(this.task.end);
         this.compute_x();
         this.compute_y();
         this.compute_duration();
-
-        // >>> SR: Bar Aggregation ---------------------------------------------
-        this.corner_radius = Math.min(this.gantt.options.bar_corner_radius, this.height / 2);
-        // <<< SR: Bar Aggregation ---------------------------------------------
-
-        // <<< SR: Date calculation Fix ---------------------------------------------
-        this.width = this.compute_width();
-        // >>> SR: Date calculation Fix ---------------------------------------------
+        const max_radius = this.height / 2;
+        if (this.gantt.options.bar_corner_radius > max_radius) {
+            if (!this.gantt.has_warned_radius) {
+                console.warn(
+                    `Frappe Gantt: the provided bar_corner_radius (${this.gantt.options.bar_corner_radius}) exceeds the maximum limit of half the bar height. Clamped to ${max_radius} to prevent distortion.`,
+                );
+                this.gantt.has_warned_radius = true;
+            }
+        }
+        this.corner_radius = Math.min(
+            this.gantt.options.bar_corner_radius,
+            max_radius,
+        );
+        this.width = this.gantt.config.column_width * this.duration;
         if (!this.task.progress || this.task.progress < 0)
             this.task.progress = 0;
         if (this.task.progress > 100) this.task.progress = 100;
@@ -311,7 +307,10 @@ export default class Bar {
         const bar = this.$bar;
         const handle_width = 3;
         this.handles = [];
-        if (!this.gantt.options.readonly_dates) {
+        if (
+            !this.gantt.options.readonly_dates &&
+            !this.gantt.options.fixed_duration
+        ) {
             this.handles.push(
                 createSVG('rect', {
                     x: bar.getEndX() - handle_width / 2,
@@ -752,8 +751,7 @@ export default class Bar {
     compute_duration() {
         let actual_duration_in_days = 0,
             duration_in_days = 0;
-        let endDate = this.task.orig_end ?? this.task._end;
-        
+        // console.log(this.task._start, this.task._end);
         for (
             let d = new Date(this.task._start);
             // >>> SR: Bar Aggregation -----------------------------------------
