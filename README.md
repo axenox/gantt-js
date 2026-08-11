@@ -1,14 +1,17 @@
 <div align="center" markdown="1">
     <img src=".github/gantt-logo.jpg" width="80">
-    <h1>Frappe Gantt</h1>
+    <h1>Frappe Gantt Aggregation</h1>
 
 **A modern, configurable, Gantt library for the web.**
 
 </div>
 
-![Hero Image](.github/hero-image.png)
+![Aggregations Image](.github/frappe-gantt-aggregation-image.png)
 
-## Frappe Gantt
+This library is a fork of [Frappe Gantt](https://github.com/frappe/gantt). 
+It has been modified to support multiple tasks in the same row, with a special "aggregation" bar to indicate overlapping tasks.
+
+## Frappe Gantt Aggregation
 
 Gantt charts are bar charts that visually illustrate a project's tasks, schedule, and dependencies. With Frappe Gantt, you can build beautiful, customizable, Gantt charts with ease.
 
@@ -18,10 +21,13 @@ You can use it anywhere from hobby projects to tracking the goals of your team a
 
 ### Motivation
 
-We needed a Gantt View for ERPNext. Surprisingly, we couldn't find a visually appealing Gantt library that was open source - so we decided to build it. Initially, the design was heavily inspired by Google Gantt and DHTMLX.
+Our customers wanted a Gantt chart that could display multiple tasks in the same row, so we build one!
 
 ### Key Features
 
+-   **Multiple Tasks in a Row**: display multiple tasks in the same row, with a special "aggregation" bar to indicate overlapping tasks.
+
+Also includes standard frappe-gantt features:
 -   **Customizable Views**: customize the timeline based on various time periods - day, hour, or year, you have it. You can also create your own views.
 -   **Ignore Periods**: exclude weekends and other holidays from your tasks' progress calculation.
 -   **Configure Anything**: spacing, edit access, labels, you can control it all. Change both the style and functionality to meet your needs.
@@ -32,24 +38,14 @@ We needed a Gantt View for ERPNext. Surprisingly, we couldn't find a visually ap
 Install with:
 
 ```bash
-npm install frappe-gantt
+npm install frappe-gantt-aggregation
 ```
 
 Include it in your HTML:
 
 ```html
-<script src="frappe-gantt.umd.js"></script>
-<link rel="stylesheet" href="frappe-gantt.css" />
-```
-
-Or from the CDN:
-
-```html
-<script src="https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.umd.js"></script>
-<link
-    rel="stylesheet"
-    href="https://cdn.jsdelivr.net/npm/frappe-gantt/dist/frappe-gantt.css"
-/>
+<script src="frappe-gantt-aggregation.umd.js"></script>
+<link rel="stylesheet" href="frappe-gantt-aggregation.css" />
 ```
 
 Start using Gantt:
@@ -105,6 +101,8 @@ Frappe Gantt offers a wide range of options to customize your chart.
 | `today_button`           | Adds a button to navigate to today’s date.                    | `true`, `false`                                                                                                                                                               | `true`                                              |
 | `view_mode`              | The initial view mode of the Gantt chart.                     | `Day`, `Week`, `Month`, `Year`.                                                                                                                                               | `Day`                                               |
 | `view_mode_select`       | Allows selecting the view mode from a dropdown.               | `true`, `false`                                                                                                                                                               | `false`                                             |
+
+All new Aggregation options will be listet here soon!
 
 Apart from these ones, two options - `popup` and `view_modes` (plural, not singular) - are available. They have "sub"-APIs, and thus are listed separately.
 

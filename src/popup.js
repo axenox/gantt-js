@@ -475,7 +475,7 @@ export default class Popup {
         
         if (hasRealStart || hasRealEnd) {
           if (hasRealStart && hasRealEnd) {
-            durationText = `${ogTask.actual_duration} Tage${ogTask.ignored_duration ? ' + ' + ogTask.ignored_duration + ' Ausgeschlossen' : ''}`;
+            durationText = `${ogTask.actual_duration} Days${ogTask.ignored_duration ? ' + ' + ogTask.ignored_duration + ' Excluded' : ''}`;
           }
         }
 
@@ -566,7 +566,7 @@ export default class Popup {
         if (hasRealStart || hasRealEnd) {
           if (hasRealStart && hasRealEnd) {
             rangeText =
-                ` (${start_date} - ${end_date}) (${ogTask.actual_duration} Tage${ogTask.ignored_duration ? ' + ' + ogTask.ignored_duration + ' Ausgeschlossen' : ''})`;
+                ` (${start_date} - ${end_date}) (${ogTask.actual_duration} Days${ogTask.ignored_duration ? ' + ' + ogTask.ignored_duration + ' Excluded' : ''})`;
           } else if (hasRealStart && !hasRealEnd) {
             rangeText =
                 ` (${start_date} - ... )`;

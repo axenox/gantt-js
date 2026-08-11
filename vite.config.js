@@ -3,7 +3,6 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   build: {
-    //target: "es2020", // Nimm es raus, wenn Kompatibilität mit älteren Browsern gebraucht wird.
     sourcemap: true,
     minify: false,
 
@@ -12,16 +11,16 @@ export default defineConfig({
       name: 'Gantt', // global name for iife/umd
       formats: ['es', 'umd', 'iife'],
       fileName: (format) => {
-        if (format === 'iife') return 'frappe-gantt.js';
-        if (format === 'es') return 'frappe-gantt.es.js';
-        if (format === 'umd') return 'frappe-gantt.umd.js';
-        return `frappe-gantt.${format}.js`;
+        if (format === 'iife') return 'frappe-gantt-aggregation.js';
+        if (format === 'es') return 'frappe-gantt-aggregation.es.js';
+        if (format === 'umd') return 'frappe-gantt-aggregation.umd.js';
+        return `frappe-gantt-aggregation.${format}.js`;
       },
     },
 
     rollupOptions: {
       output: {
-        assetFileNames: 'frappe-gantt[extname]',
+        assetFileNames: 'frappe-gantt-aggregation[extname]',
         interop: 'auto',
       },
     },

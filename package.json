@@ -1,8 +1,10 @@
 {
-    "name": "frappe-gantt",
-    "version": "1.1.0",
+    "name": "frappe-gantt-aggregation",
+    "version": "1.0",
     "description": "Upgraded version of frappe-gantt with support of multiple tasks per row and other features.",
-    "main": "src/index.js",
+    "main": "./dist/frappe-gantt-aggregation.umd.js",
+    "module": "./dist/frappe-gantt-aggregation.es.js",
+    "style": "./dist/frappe-gantt-aggregation.css",
     "type": "module",
     "scripts": {
         "dev": "vite build --watch",
@@ -16,15 +18,17 @@
         "url": "git+https://github.com/axenox/gantt-js"
     },
     "files": [
-        "src",
         "dist",
-        "README.md"
+        "src/styles",
+        "tools/view-mode-builder.js",
+        "README.md",
+        "license.txt"
     ],
     "exports": {
         ".": {
-            "require": "./dist/frappe-gantt.umd.js",
-            "import": "./dist/frappe-gantt.es.js",
-            "style": "./dist/frappe-gantt.css"
+            "require": "./dist/frappe-gantt-aggregation.umd.js",
+            "import": "./dist/frappe-gantt-aggregation.es.js",
+            "style": "./dist/frappe-gantt-aggregation.css"
         }
     },
     "keywords": [
@@ -33,14 +37,17 @@
         "simple gantt",
         "project timeline",
         "interactive gantt",
-        "project management"
+        "project management",
+        "frappe-gantt-aggregation",
+        "timeline-aggregation",
+        "multiple-tasks-per-row"
     ],
     "author": "Faris Ansari, Sergej Riel",
     "license": "MIT",
     "bugs": {
-        "url": "https://github.com/frappe/gantt/issues"
+        "url": "https://github.com/axenox/gantt-js/issues"
     },
-    "homepage": "https://github.com/frappe/gantt",
+    "homepage": "https://github.com/axenox/gantt-js",
     "devDependencies": {
         "eslint": "^9.15.0",
         "eslint-config-prettier": "^2.9.0",
