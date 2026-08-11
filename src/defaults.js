@@ -172,37 +172,18 @@ const DEFAULT_OPTIONS = {
             'MMM dd',
             ctx.chart.options.language,
         );
+        const word = ctx.task.actual_duration === 1 ? 'day' : 'days';
 
-        // >>> SR: Bar Aggregation ---------------------------------------------
-        // special treatment for tasks without start or end-date and duration
-        const hasRealStart = !!(ctx.task.start);
-        const hasRealEnd = (!!(ctx.task.end) || ctx.task.duration !== undefined);
-
-        if (hasRealStart || hasRealEnd) {
-          if (hasRealStart && hasRealEnd) {
-            ctx.set_details(
-                `${start_date} - ${end_date} (${ctx.task.actual_duration} days${ctx.task.ignored_duration ? ' + ' + ctx.task.ignored_duration + ' excluded' : ''})<br/>Progress: ${Math.floor(ctx.task.progress * 100) / 100}%`,
-            );
-          } else if (hasRealStart && !hasRealEnd) {
-            ctx.set_details(
-                `${start_date} - ... <br/>Progress: ${Math.floor(ctx.task.progress * 100) / 100}%`,
-            );
-          } else if (hasRealEnd && !hasRealStart) {
-            ctx.set_details(
-                `... - ${end_date} <br/>Progress: ${Math.floor(ctx.task.progress * 100) / 100}%`,
-            );
-          }
-        }
-
-/*        ctx.set_details(
-            `${start_date} - ${end_date} (${ctx.task.actual_duration} days${ctx.task.ignored_duration ? ' + ' + ctx.task.ignored_duration + ' excluded' : ''})<br/>Progress: ${Math.floor(ctx.task.progress * 100) / 100}%`,
-        );*/
-      // <<< SR: Bar Aggregation -----------------------------------------------
+        ctx.set_details(
+            `${start_date} - ${end_date} (${ctx.task.actual_duration} ${word}${ctx.task.ignored_duration ? ' + ' + ctx.task.ignored_duration + ' excluded' : ''})<br/>Progress: ${Math.floor(ctx.task.progress * 100) / 100}%`,
+        );
     },
     popup_on: 'click', //hover
     readonly_progress: false,
     readonly_dates: false,
     readonly: false,
+    hover_on_date: false,
+    fixed_duration: false,
     scroll_to: 'today',
     show_expected_progress: false,
     today_button: true,
