@@ -735,10 +735,6 @@ export default class Bar {
 
       const baseY =
           this.gantt.config.header_height +
-          //TODO SR INFO: ATTENTION! The incorrect procedure in the old adapted version is as follows: The padding should only change the distance to the header in the first line. 
-          // The first line should appear larger accordingly and the others should remain the same. 
-          // Since the top line does not change here, all bars automatically slide down. 
-          // The problem currently lies in the incorrect calculation of padding in connection with overlapping lanes.
           
           //TODO SR: The padding already malfunctioned in the old adapted version and needs to be reworked.
           //this.gantt.options.padding + //TODO SR: Put the padding back as soon as the problem has been fixed!
@@ -748,19 +744,6 @@ export default class Bar {
       
       // Lane offset remains the same, but starts below the inner top padding
       let y = baseY + innerTop + lane * (this.height + this.gantt.options.lane_padding);
-      
-      //TODO SR: Debug output. Delete before the release:
-/*    console.log("rowIndex: ", rowIndex);
-      console.log("lane: ", lane);
-      
-      console.log("baseY: " + baseY + " = " + "header_height: " + this.gantt.config.header_height + " padding: " + this.gantt.options.padding + " rowTop: " + this.rowTop(rowIndex));
-      
-      console.log("innerTop: ", innerTop);
-      console.log("y: ", y);
-      
-      console.log("------------------------------");
-      */
-
       // <<< SR: Bar Aggregation -----------------------------------------------
       
       this.y = y;

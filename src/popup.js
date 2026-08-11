@@ -359,7 +359,7 @@ export default class Popup {
       const leftHeaderHeight = listHeader?.offsetHeight || 0;
       const rowHeight = this.popup_gantt.options?.row_height || 0;
 
-      // TODO SR: Die "- 15" sind gerade fest eingebaut. Mache es dynamisch!
+      // TODO SR: The ‘-15’ has just been hard-coded. Make it dynamic!
       listContent.style.marginTop = `${Math.max(
           0,
           popupHeaderHeight - leftHeaderHeight - 15,

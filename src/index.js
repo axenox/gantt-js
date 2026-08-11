@@ -498,40 +498,6 @@ export default class Gantt {
         gantt_end = date_utils.start_of(gantt_end, this.config.unit);
 
         if (!refresh) {
-            // TODO SR: Old code. Clean after test.
-/*          if (!this.options.infinite_padding) {
-            if (typeof this.config.view_mode.padding === 'string')
-              this.config.view_mode.padding = [
-                this.config.view_mode.padding,
-                this.config.view_mode.padding,
-              ];
-
-            let [padding_start, padding_end] =
-                this.config.view_mode.padding.map(
-                    date_utils.parse_duration,
-                );
-            this.gantt_start = date_utils.add(
-                gantt_start,
-                -padding_start.duration,
-                padding_start.scale,
-            );
-            this.gantt_end = date_utils.add(
-                gantt_end,
-                padding_end.duration,
-                padding_end.scale,
-            );
-          } else {
-            this.gantt_start = date_utils.add(
-                gantt_start,
-                -this.config.extend_by_units * 3,
-                this.config.unit,
-            );
-            this.gantt_end = date_utils.add(
-                gantt_end,
-                this.config.extend_by_units * 3,
-                this.config.unit,
-            );
-          }*/
           // >>> SR: Date calculation Fix -------------------------------------------
             const view_padding = Array.isArray(this.config.view_mode.padding)
                 ? this.config.view_mode.padding
@@ -825,7 +791,8 @@ export default class Gantt {
         let tick_x = 0;
         let tick_y = this.config.header_height;
         let tick_height = this.grid_height - this.config.header_height;
-        //let tick_height = this.get_content_height(); //TODO SR: It makes no difference.
+        // It makes no difference.
+        //let tick_height = this.get_content_height(); 
 
         let $lines_layer = createSVG('g', {
             class: 'lines_layer',
@@ -1601,57 +1568,15 @@ export default class Gantt {
             pos = x_on_start;
 
             bars.forEach((bar) => {
-                const $bar = bar.$bar;
-                $bar.ox = $bar.getX();
-                $bar.oy = $bar.getY();
-                $bar.owidth = $bar.getWidth();
-                $bar.finaldx = 0;
+                const $bar = bar?.$bar;
+                if ($bar) {
+                    $bar.ox = $bar.getX();
+                    $bar.oy = $bar.getY();
+                    $bar.owidth = $bar.getWidth();
+                    $bar.finaldx = 0;
+                }
             });
         });
-          
-          //TODO SR: Old Code. Test and then remove.
-/*        if (this.options.infinite_padding) {
-          let extended = false;
-          $.on(this.$container, 'mousewheel', (e) => {
-            let trigger = this.$container.scrollWidth / 2;
-            if (!extended && e.currentTarget.scrollLeft <= trigger) {
-              let old_scroll_left = e.currentTarget.scrollLeft;
-              extended = true;
-  
-              this.gantt_start = date_utils.add(
-                  this.gantt_start,
-                  -this.config.extend_by_units,
-                  this.config.unit,
-              );
-              this.setup_date_values();
-              this.render();
-              e.currentTarget.scrollLeft =
-                  old_scroll_left +
-                  this.config.column_width * this.config.extend_by_units;
-              setTimeout(() => (extended = false), 300);
-            }
-  
-            if (
-                !extended &&
-                e.currentTarget.scrollWidth -
-                (e.currentTarget.scrollLeft +
-                    e.currentTarget.clientWidth) <=
-                trigger
-            ) {
-              let old_scroll_left = e.currentTarget.scrollLeft;
-              extended = true;
-              this.gantt_end = date_utils.add(
-                  this.gantt_end,
-                  this.config.extend_by_units,
-                  this.config.unit,
-              );
-              this.setup_date_values();
-              this.render();
-              e.currentTarget.scrollLeft = old_scroll_left;
-              setTimeout(() => (extended = false), 300);
-            }
-          });
-        }*/
 
         if (this.options.infinite_padding) {
           // >>> SR: Date calculation Fix -------------------------------------------
@@ -1783,7 +1708,7 @@ export default class Gantt {
             // draggable check: if any of the bars is not draggable, cancel the action
             let bDraggable = true;
             bars.forEach((bar) => {
-              if (bar.task.draggable === false) {
+              if (bar?.task?.draggable === false) {
                 bDraggable = false;
               }
             });
@@ -1794,7 +1719,8 @@ export default class Gantt {
             }
             // <<< SR: Draggable -----------------------------------------------
             bars.forEach((bar) => {
-                const $bar = bar.$bar;
+                const $bar = bar?.$bar;
+                if (!$bar) return;
                 $bar.finaldx = this.get_snap_position(dx, $bar.ox);
                 this.hide_popup();
                 if (is_resizing_left) {
@@ -1904,7 +1830,6 @@ export default class Gantt {
             }
 
             let dx = now_x - x_on_start;
-            //console.log($bar_progress); //TODO SR: It was already there before me. Take it in?
             if (dx > $bar_progress.max_dx) {
                 dx = $bar_progress.max_dx;
             }
@@ -2245,7 +2170,6 @@ export default class Gantt {
 
     //TODO SR: New special calculation for the Month view:
     // config.unit is parsed from the mode.step
-    // Attention! The "month" step option is still not correct. Fix it!
     if (this.config.unit === 'month') {
       const gantt_month_start = date_utils.start_of(this.gantt_start, 'month');
       const date_month_start = date_utils.start_of(date, 'month');

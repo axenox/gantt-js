@@ -106,23 +106,17 @@ const date_utils = {
     },
 
     // >>> SR: Bar Aggregation -------------------------------------------------
-    // TODO SR: Complete the time formating testing and clean the old code here:
-/*    format(date, format_string = 'YYYY-MM-dd HH:mm:ss.SSS') {
-      return exfTools.date.format(date, format_string);
-    },*/
-
     format(date, date_format, lang = 'en') {
         // >>> SR: Configurable date formatter --------------------------------
         return this._date_formatter(date, date_format || this._date_format_default, lang);
         // <<< SR: Configurable date formatter --------------------------------
-      //return exfTools.date.format(date, date_format); //TODO SR: Entferne
     },
 
     default_formatter(date, date_format = 'YYYY-MM-DD HH:mm:ss.SSS', lang = 'en') {
         const dateTimeFormat = new Intl.DateTimeFormat(lang, {
             month: 'long',
         });
-        const dateTimeFormatShort = new Intl.DateTimeFormat(lang, { //TODO SR: that is new. Check it.
+        const dateTimeFormatShort = new Intl.DateTimeFormat(lang, {
             month: 'short',
         });
         const month_name = dateTimeFormat.format(date);
@@ -146,7 +140,7 @@ const date_utils = {
             SSS: values[6],
             D: values[2],
             MMMM: month_name_capitalized,
-            MMM: dateTimeFormatShort.format(date), //TODO SR: that is new. Check it.
+            MMM: dateTimeFormatShort.format(date),
         };
 
         let str = date_format;
@@ -156,7 +150,7 @@ const date_utils = {
             .sort((a, b) => b.length - a.length) // big string first
             .forEach((key) => {
                 if (str.includes(key)) {
-                    str = str.replaceAll(key, `$${formatted_values.length}`); //TODO SR: replaceAll instead of replace is new
+                    str = str.replaceAll(key, `$${formatted_values.length}`);
                     formatted_values.push(format_map[key]);
                 }
             });
