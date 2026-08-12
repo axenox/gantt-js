@@ -51,20 +51,12 @@ jobs:
             - name: Setup npm CLI with trusted publishing support
               run: npm install -g npm@11
 
-            - name: Install dependencies
-              run: |
-                  if [ -f package-lock.json ]; then
-                      npm ci
-                  else
-                      npm install
-                  fi
-
             - name: Bump package version
               if: ${{ inputs.publish }}
-              run: |
-                  git config user.name "github-actions[bot]"
-                  git config user.email "github-actions[bot]@users.noreply.github.com"
-                  npm version "${{ inputs.version_bump }}" -m "Bump package version to %s"
+              run: npm version "${{ inputs.version_bump }}" --no-git-tag-version
+
+            - name: Install dependencies
+              run: npm install
 
             - name: Build package files
               run: npm run build
@@ -82,6 +74,16 @@ jobs:
                   path: |
                       *.tgz
                       npm-pack-result.json
+
+            - name: Create version commit and tag
+              if: ${{ inputs.publish }}
+              run: |
+                  VERSION=$(node -p "require('./package.json').version")
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+                  git add package.json package-lock.json
+                  git commit -m "Bump package version to v$VERSION"
+                  git tag "v$VERSION"
 
             - name: Publish package to npm
               if: ${{ inputs.publish }}
