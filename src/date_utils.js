@@ -1,3 +1,5 @@
+import moment from 'moment';
+
 const YEAR = 'year';
 const MONTH = 'month';
 const DAY = 'day';

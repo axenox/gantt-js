@@ -1,0 +1,98 @@
+name: Publish npm package
+
+on:
+    workflow_dispatch:
+        inputs:
+            publish:
+                description: 'Publish package to npm after building and packing'
+                required: true
+                default: false
+                type: boolean
+            version_bump:
+                description: 'Version increment used before publishing'
+                required: true
+                default: 'patch'
+                type: choice
+                options:
+                    - patch
+                    - minor
+                    - major
+            npm_tag:
+                description: 'npm dist-tag used when publish is enabled'
+                required: true
+                default: 'latest'
+                type: choice
+                options:
+                    - latest
+                    - next
+                    - beta
+
+permissions:
+    contents: write
+    id-token: write
+
+jobs:
+    package:
+        name: Build, pack and optionally publish
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 20
+                  registry-url: 'https://registry.npmjs.org'
+
+            - name: Install dependencies
+              run: |
+                  if [ -f package-lock.json ]; then
+                      npm ci
+                  else
+                      npm install
+                  fi
+
+            - name: Bump package version
+              if: ${{ inputs.publish }}
+              run: |
+                git config user.name "github-actions[bot]"
+                git config user.email "github-actions[bot]@users.noreply.github.com"
+                npm version "${{ inputs.version_bump }}" -m "Bump package version to %s"
+
+            - name: Build package files
+              run: npm run build
+
+            - name: Show package contents
+              run: npm pack --dry-run
+
+            - name: Create npm package artifact
+              run: npm pack --json > npm-pack-result.json
+
+            - name: Upload npm package artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: npm-package
+                  path: |
+                      *.tgz
+                      npm-pack-result.json
+
+            - name: Publish package to npm
+              if: ${{ inputs.publish }}
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+              run: |
+                  PACKAGE_NAME=$(node -p "require('./package.json').name")
+
+                  if [[ "$PACKAGE_NAME" == @* ]]; then
+                      npm publish --access public --tag "${{ inputs.npm_tag }}" --provenance
+                  else
+                      npm publish --tag "${{ inputs.npm_tag }}" --provenance
+                  fi
+
+            - name: Push version commit and tag
+              if: ${{ inputs.publish }}
+              run: git push origin HEAD:${{ github.ref_name }} --follow-tags
