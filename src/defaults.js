@@ -23,7 +23,7 @@ function formatWeek(d, ld, lang) {
 }
 
 const DEFAULT_VIEW_MODES = [
-    // >>> SR: Bar Aggregation -------------------------------------------------
+    // >>> SR: Bar Aggregation TEST-------------------------------------------------
     // It currently doesn't work properly with PowerUI
 /*    {
         name: 'Hour',

@@ -21,7 +21,6 @@ export default class Gantt {
 
     setup_wrapper(element) {
         let svg_element, wrapper_element;
-        let publishTestDeleteIt = false; //TODO SR: Entferne
 
         // CSS Selector is passed
         if (typeof element === 'string') {
