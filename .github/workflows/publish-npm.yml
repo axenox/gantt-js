@@ -48,6 +48,9 @@ jobs:
                   node-version: 20
                   registry-url: 'https://registry.npmjs.org'
 
+            - name: Setup npm CLI with trusted publishing support
+              run: npm install -g npm@11
+
             - name: Install dependencies
               run: |
                   if [ -f package-lock.json ]; then
@@ -59,9 +62,9 @@ jobs:
             - name: Bump package version
               if: ${{ inputs.publish }}
               run: |
-                git config user.name "github-actions[bot]"
-                git config user.email "github-actions[bot]@users.noreply.github.com"
-                npm version "${{ inputs.version_bump }}" -m "Bump package version to %s"
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+                  npm version "${{ inputs.version_bump }}" -m "Bump package version to %s"
 
             - name: Build package files
               run: npm run build
@@ -82,15 +85,13 @@ jobs:
 
             - name: Publish package to npm
               if: ${{ inputs.publish }}
-              env:
-                  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
               run: |
                   PACKAGE_NAME=$(node -p "require('./package.json').name")
 
                   if [[ "$PACKAGE_NAME" == @* ]]; then
-                      npm publish --access public --tag "${{ inputs.npm_tag }}" --provenance
+                      npm publish --access public --tag "${{ inputs.npm_tag }}"
                   else
-                      npm publish --tag "${{ inputs.npm_tag }}" --provenance
+                      npm publish --tag "${{ inputs.npm_tag }}"
                   fi
 
             - name: Push version commit and tag
