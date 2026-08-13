@@ -2,176 +2,398 @@
     <img src=".github/gantt-logo.jpg" width="80">
     <h1>Frappe Gantt Aggregation</h1>
 
-**A modern, configurable, Gantt library for the web.**
+**A modern, configurable Gantt chart library with aggregation support for overlapping tasks.**
 
 </div>
 
 ![Aggregations Image](assets/frappe-gantt-aggregation-image.png)
 
-This library is a fork of [Frappe Gantt](https://github.com/frappe/gantt). 
-It has been modified to support multiple tasks in the same row, with a special "aggregation" bar to indicate overlapping tasks.
+`frappe-gantt-aggregation` is a fork of [Frappe Gantt](https://github.com/frappe/gantt). It keeps the familiar Frappe Gantt API and adds support for multiple tasks in the same logical row, aggregation bars for overlaps, configurable lanes, enhanced popups, custom date formatting and more simplified view configuration.
 
-## Frappe Gantt Aggregation
+## Key Features
 
-Gantt charts are bar charts that visually illustrate a project's tasks, schedule, and dependencies. With Frappe Gantt, you can build beautiful, customizable, Gantt charts with ease.
+-   **Multiple tasks per row**: group tasks by `lineIndex` and render overlapping tasks in lanes.
+-   **Aggregation bars**: when too many tasks overlap in one row, hidden lower-lane tasks are represented by a compact `+N` aggregation bar.
+-   **Priority-aware aggregation**: use a task `priority` to keep important tasks visible in the upper lane.
+-   **Aggregation popups**: show aggregate members as a list or table, optionally with a compact Gantt preview.
+-   **Custom date formatter**: plug in your application date formatter globally.
+-   **View build helpers**: build custom view modes from simplified configuration objects.
+-   **Standard Frappe Gantt features**: custom views, ignored periods, localization, dependencies, read-only modes and progress display.
 
-You can use it anywhere from hobby projects to tracking the goals of your team at the worksplace.
-
-[ERPNext](https://erpnext.com/) uses Frappe Gantt.
-
-### Motivation
-
-Our customers wanted a Gantt chart that could display multiple tasks in the same row, so we build one!
-
-### Key Features
-
--   **Multiple Tasks in a Row**: display multiple tasks in the same row, with a special "aggregation" bar to indicate overlapping tasks.
-
-Also includes standard frappe-gantt features:
--   **Customizable Views**: customize the timeline based on various time periods - day, hour, or year, you have it. You can also create your own views.
--   **Ignore Periods**: exclude weekends and other holidays from your tasks' progress calculation.
--   **Configure Anything**: spacing, edit access, labels, you can control it all. Change both the style and functionality to meet your needs.
--   **Multi-lingual Support**: suitable for companies with an international base.
-
-## Usage
-
-Install with:
+## Installation
 
 ```bash
 npm install frappe-gantt-aggregation
 ```
 
-Include it in your HTML:
+### ES modules
+
+```js
+import Gantt from 'frappe-gantt-aggregation';
+import 'frappe-gantt-aggregation/dist/frappe-gantt-aggregation.css';
+```
+
+### Browser bundle
 
 ```html
 <script src="frappe-gantt-aggregation.umd.js"></script>
 <link rel="stylesheet" href="frappe-gantt-aggregation.css" />
 ```
 
-Start using Gantt:
+### CDN
 
-```js
-let tasks = [
-  {
-    id: '1',
-    name: 'Redesign website',
-    start: '2016-12-28',
-    end: '2016-12-31',
-    progress: 20
-  },
-  ...
-]
-let gantt = new Gantt("#gantt", tasks);
-
-// Use .refresh to update the chart
-gantt.tasks.append(...)
-gantt.tasks.refresh()
+```html
+<script src="https://cdn.jsdelivr.net/npm/frappe-gantt-aggregation/dist/frappe-gantt-aggregation.umd.js"></script>
+<link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/frappe-gantt-aggregation/dist/frappe-gantt-aggregation.css"
+/>
 ```
 
-### Configuration
+## Basic Usage
 
-Frappe Gantt offers a wide range of options to customize your chart.
+```js
+const tasks = [
+    {
+        id: 'task-1',
+        name: 'Visible task',
+        start: '2026-01-01',
+        end: '2026-01-05',
+        progress: 30,
+        lineIndex: 0,
+        priority: 10,
+    },
+    {
+        id: 'task-2',
+        name: 'Overlapping task',
+        start: '2026-01-03',
+        end: '2026-01-07',
+        progress: 10,
+        lineIndex: 0,
+    },
+];
 
-| **Option**               | **Description**                                               | **Possible Values**                                                                                                                                                           | **Default**                                         |
-| ------------------------ | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `arrow_curve`            | Curve radius of arrows connecting dependencies.               | Any positive integer.                                                                                                                                                         | `5`                                                 |
-| `auto_move_label`        | Move task labels when user scrolls horizontally.              | `true`, `false`                                                                                                                                                               | `false`                                             |
-| `bar_corner_radius`      | Radius of the task bar corners (in pixels).                   | Any positive integer.                                                                                                                                                         | `3`                                                 |
-| `bar_height`             | Height of task bars (in pixels).                              | Any positive integer.                                                                                                                                                         | `30`                                                |
-| `container_height`       | Height of the container.                                      | `auto` - dynamic container height to fit all tasks - _or_ any positive integer (for pixels).                                                                                  | `auto`                                              |
-| `column_width`           | Width of each column in the timeline.                         | Any positive integer.                                                                                                                                                         | 45                                                  |
-| `date_format`            | Format for displaying dates.                                  | Any valid JS date format string.                                                                                                                                              | `YYYY-MM-DD`                                        |
-| `upper_header_height`    | Height of the upper header in the timeline (in pixels).       | Any positive integer.                                                                                                                                                         | `45`                                                |
-| `lower_header_height`    | Height of the lower header in the timeline (in pixels).       | Any positive integer.                                                                                                                                                         | `30`                                                |
-| `snap_at`                | Snap tasks at particular intervel while resizing or dragging. | Any _interval_ (see below)                                                                                                                                                    | `1d`                                                |
-| `infinite_padding`       | Whether to extend timeline infinitely when user scrolls.      | `true`, `false`                                                                                                                                                               | `true`                                              |
-| `holidays`               | Highlighted holidays on the timeline.                         | Object mapping CSS colors to holiday types. Types can either be a) 'weekend', or b) array of _strings_ or _date objects_ or _objects_ in the format `{date: ..., label: ...}` | `{ 'var(--g-weekend-highlight-color)': 'weekend' }` |
-| `is_weekend`             | Determines whether a day is a weekend                         | Function                                                                                                                                                                      | `(d) => d.getDay() === 0 \|\| d.getDay() === 6`     |
-| `ignore`                 | Ignored areas in the rendering                                | `weekend` _or_ Array of strings or date objects (`weekend` can be present to the array also).                                                                                 | `[]`                                                |
-| `language`               | Language for localization.                                    | ISO 639-1 codes like `en`, `fr`, `es`.                                                                                                                                        | `en`                                                |
-| `lines`                  | Determines which grid lines to display.                       | `none` for no lines, `vertical` for only vertical lines, `horizontal` for only horizontal lines, `both` for complete grid.                                                    | `both`                                              |
-| `move_dependencies`      | Whether moving a task automatically moves its dependencies.   | `true`, `false`                                                                                                                                                               | `true`                                              |
-| `padding`                | Padding around task bars (in pixels).                         | Any positive integer.                                                                                                                                                         | `18`                                                |
-| `popup_on`               | Event to trigger the popup display.                           | `click` _or_ `hover`                                                                                                                                                          | `click`                                             |
-| `readonly_progress`      | Disables editing task progress.                               | `true`, `false`                                                                                                                                                               | `false`                                             |
-| `readonly_dates`         | Disables editing task dates.                                  | `true`, `false`                                                                                                                                                               | `false`                                             |
-| `readonly`               | Disables all editing features.                                | `true`, `false`                                                                                                                                                               | `false`                                             |
-| `scroll_to`              | Determines the starting point when chart is rendered.         | `today`, `start`, `end`, or a date string.                                                                                                                                    | `today`                                             |
-| `show_expected_progress` | Shows expected progress for tasks.                            | `true`, `false`                                                                                                                                                               | `false`                                             |
-| `today_button`           | Adds a button to navigate to today’s date.                    | `true`, `false`                                                                                                                                                               | `true`                                              |
-| `view_mode`              | The initial view mode of the Gantt chart.                     | `Day`, `Week`, `Month`, `Year`.                                                                                                                                               | `Day`                                               |
-| `view_mode_select`       | Allows selecting the view mode from a dropdown.               | `true`, `false`                                                                                                                                                               | `false`                                             |
+const gantt = new Gantt('#gantt', tasks, {
+    view_mode: 'Day',
+    row_lanes: 2,
+    popup_aggregate_style: 'table',
+});
+```
 
-All new Aggregation options will be listet here soon!
+Tasks with the same `lineIndex` are rendered in the same logical row. If tasks overlap in time, the chart keeps visible tasks in the upper lane(s) and places lower-lane tasks or aggregation bars below them.
 
-Apart from these ones, two options - `popup` and `view_modes` (plural, not singular) - are available. They have "sub"-APIs, and thus are listed separately.
+## Task Properties
 
-#### View Mode Configuration
+Frappe Gantt Aggregation supports the standard Frappe Gantt task fields and adds row, priority and styling properties.
 
-The `view_modes` option determines all the available view modes for the chart. It should be an array of objects.
+| Property | Description                                                                                                                                                           |
+| --- |-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `id` | Unique task id. Required.                                                                                                                                             |
+| `name` | Task label. Required.                                                                                                                                                 |
+| `start` | Task start date. If omitted, please refer to [Handling Incomplete Dates](#handling-incomplete-dates)                                                                  |
+| `end` | Task end date. If omitted and no `duration` is set, `default_duration` is used. Refer to [Handling Incomplete Dates](#handling-incomplete-dates) for more information. |
+| `duration` | Duration string such as `'2d'`, `'6h'` or combined values separated by spaces like `'1m 3d'`. Used to calculate `end` when `end` is omitted.                          |
+| `progress` | Progress percentage.                                                                                                                                                  |
+| `dependencies` | Comma-separated dependency ids or an array of ids.                                                                                                                    |
+| `lineIndex` | Groups tasks into the same logical row. Tasks without `lineIndex` fall back to their task index.                                                                      |
+| `priority` | Numeric priority used by aggregation logic. Higher values are kept visible first when tasks overlap.                                                                  |
+| `draggable` | Set to `false` to prevent dragging or resizing this task.                                                                                                             |
+| `readonly` | Set to `true` for a task that should not be edited. (not stable)                                                                                                      |
+| `custom_class` | Additional CSS class added to the task bar group.                                                                                                                     |
+| `color` | Task bar fill color.                                                                                                                                                  |
+| `colorHover` | Task bar hover fill color.                                                                                                                                            |
+| `progressColor` | Progress bar fill color.                                                                                                                                              |
+| `textColor` | Label text color while the label is inside the bar.                                                                                                                   |
 
-Each object can have the following properties:
+## Configuration
 
--   `name` (string) - the name of view mode.
--   `padding` (interval) - the time above.
--   `step` - the interval of each column
--   `lower_text` (date format string _or_ function) - the format for text in lower header. Blank string for none. The function takes in `currentDate`, `previousDate`, and `lang`, and should return a string.
--   `upper_text` (date format string _or_ function) - the format for text in upper header. Blank string for none. The function takes in `currentDate`, `previousDate`, and `lang`, and should return a string.
--   `upper_text_frequency` (number) - how often the upper text has a value. Utilized in internal calculation to improve performance.
--   `thick_line` (function) - takes in `currentDate`, returns Boolean determining whether the line for that date should be thicker than the others.
+| Option | Default | Description                                                                                                                                                                               |
+| --- | --- |-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `arrow_curve` | `5` | Curve radius of dependency arrows.                                                                                                                                                        |
+| `auto_move_label` | `false` | Moves long task labels with horizontal scrolling. When enabled, labels are also positioned correctly on the initial render.                                                               |
+| `bar_corner_radius` | `3` | Task bar corner radius in pixels.                                                                                                                                                         |
+| `bar_height` | `30` | Height of a single task bar in pixels.                                                                                                                                                    |
+| `container_height` | `'auto'` | Container height. Use `'auto'` to fit the rendered rows or a number for pixels.                                                                                                           |
+| `column_width` | `null` | Width of each timeline column. `null` uses the active view mode value.                                                                                                                    |
+| `date_format` | `'YYYY-MM-dd HH:mm'` | Default date format used by the chart.                                                                                                                                                    |
+| `upper_header_height` | `45` | Height of the upper timeline header in pixels.                                                                                                                                            |
+| `lower_header_height` | `30` | Height of the lower timeline header in pixels.                                                                                                                                            |
+| `snap_at` | `null` | Snap interval used while resizing or dragging. `null` uses the active view mode value.                                                                                                    |
+| `infinite_padding` | `false` | Extends the rendered timeline while scrolling. This option is currently not considered stable.                                                                                            |
+| `holidays` | `{ 'var(--g-weekend-highlight-color)': 'weekend' }` | Highlighted holidays. Keys are colors, values are `'weekend'` or date definitions.                                                                                                        |
+| `is_weekend` | `(d) => d.getDay() === 0 \|\| d.getDay() === 6` | Function that decides whether a date is a weekend.                                                                                                                                        |
+| `ignore` | `[]` | Ignored periods for progress calculation and rendering, for example `'weekend'` or date arrays.                                                                                           |
+| `language` | `'en'` | Localization language code.                                                                                                                                                               |
+| `lines` | `'both'` | Grid lines: `'none'`, `'vertical'`, `'horizontal'` or `'both'`.                                                                                                                           |
+| `move_dependencies` | `true` | Moves dependent tasks automatically when a task is moved.                                                                                                                                 |
+| `padding` | `18` | Legacy padding around bars. With aggregation layouts, vertical spacing is mainly controlled by row and lane options.                                                                      |
+| `popup` | Default popup renderer | Function used to render task and aggregation popups. See [Popup Configuration](#popup-configuration).                                                                                     |
+| `popup_on` | `'click'` | Popup trigger: `'click'` or `'hover'`.                                                                                                                                                    |
+| `readonly_progress` | `false` | Disables progress editing.                                                                                                                                                                |
+| `readonly_dates` | `false` | Disables date editing.                                                                                                                                                                    |
+| `readonly` | `false` | Disables all editing.                                                                                                                                                                     |
+| `scroll_to` | `'today'` | Initial scroll target: `'today'`, `'start'`, `'end'` or a date value.                                                                                                                     |
+| `show_expected_progress` | `false` | Shows the expected progress overlay.                                                                                                                                                      |
+| `today_button` | `true` | Shows a button that scrolls to today.                                                                                                                                                     |
+| `on_today_missing` | `null` | Callback called when `scroll_current()` is triggered but today is outside the rendered interval. Signature: `(today, gantt_start, gantt_end)`.                                            |
+| `view_mode` | `'Day'` | Initial view mode name or view mode object.                                                                                                                                               |
+| `view_mode_select` | `false` | Shows a view mode dropdown.                                                                                                                                                               |
+| `view_modes` | Default Day, Week, Month, Year modes | Available view modes. See [View Mode Configuration](#view-mode-configuration).                                                                                                            |
+| `label_overflow` | `'outside'` | Label behavior when it does not fit inside the bar: `'outside'` or `'clip'`. Use `'clip'` if aggreagtions are used to prevent the label from overlaping with the next task on the same row. |
+| `label_outside_color` | `'#555'` | Label color used when `label_overflow: 'outside'`.                                                                                                                                        |
+| `lane_padding` | `4` | Vertical spacing between lanes inside the same row.                                                                                                                                       |
+| `row_height` | `null` | Fixed row height. If `null`, it is calculated from `bar_height + padding`.                                                                                                                |
+| `bar_inner_padding` | `6` | Total vertical inner padding within a row for task bars.                                                                                                                                  |
+| `row_keys` | `null` | Explicit row order and row list. Useful for rendering empty rows or stable row ordering.                                                                                                  |
+| `default_duration` | `2` | Duration in days used for tasks with missing start or end information.                                                                                                                    |
+| `start_of_week` | `'monday'` | Week alignment start. Use `'monday'`; `'sunday'` is present but not stable.                                                                                                               |
+| `include_today_in_padding` | `false` | Extends the padded date range so today is included. Experimental.                                                                                                                         |
+| `global_min_view_start` | `null` | Minimum start date included before view padding is applied.                                                                                                                               |
+| `global_min_view_end` | `null` | Minimum end date included before view padding is applied.                                                                                                                                 |
+| `stripe_rows` | `false` | Enables classic alternating row background colors.                                                                                                                                        |
+| `popup_aggregate_style` | `'list'` | Aggregation popup member layout: `'list'` or `'table'`. The table layout is experimental.                                                                                                 |
+| `popup_aggregate_include_upper_row_tasks` | `true` | Includes overlapping visible upper-lane tasks in aggregation popups. Set to `false` to show only aggregate members.                                                                       |
+| `date_formatter` | `null` | Optional global formatter function. Signature: `(date, format_string, lang)`.                                                                                                             |
+| `date_format_default` | `'YYYY-MM-DD HH:mm:ss.SSS'` | Fallback format passed to `date_formatter` when no explicit format is supplied.                                                                                                           |
+| `row_lanes` | `2` | Number of vertical lanes per row. The last lane is reserved for lower tasks or aggregation bars. Minimum value is `2`.                                                                    |
+| `popup_aggregate_expand_tasks` | `false` | Shows a compact Gantt chart next to the aggregation popup task list. Experimental.                                                                                                        |
+| `popup_aggregate_gantt_width` | `360` | Width in pixels for the compact popup Gantt. Used only when `popup_aggregate_expand_tasks` is `true`.                                                                                     |
 
-Three other options allow you to override general configuration for this view mode alone:
+## Aggregation Behavior
 
--   `date_format`
--   `column_width`
--   `snap_at`
-    For details, see the above table.
+Aggregation is based on `lineIndex` and time overlap:
 
-#### Popup Configuration
+1. Tasks with the same `lineIndex` are placed in the same logical row.
+2. The chart chooses visible upper-lane tasks using interval scheduling.
+3. If a row contains numeric `priority` values, higher priority tasks are selected first.
+4. Tasks that cannot fit in the upper lanes are moved to the reserved lower lane.
+5. If two or more lower-lane tasks overlap, they are replaced by an aggregation bar named `+N`.
+6. Clicking the aggregation bar opens a popup with the aggregated members.
 
-`popup` is a function. If it returns
+Use `row_lanes` in combination with `row_height` to allow more visible upper lanes:
 
--   `false`, there will be no popup.
--   `undefined`, the popup will be rendered based on manipulation within the function
--   a HTML string, the popup will be that string.
+```js
+new Gantt('#gantt', tasks, {
+    row_lanes: 3, // two visible upper lanes, one lower aggregation lane
+    row_height: 52, // enough height for three lanes
+});
+```
 
-The function receives one object as an argument, containing:
+Use `row_keys` to enforce stable row ordering or render rows even when they have no tasks:
 
--   `task` - the task as an object
--   `chart` - the entire Gantt chart
--   `get_title`, `get_subtitle`, `get_details` (functions) - get the relevant section as a HTML node.
--   `set_title`, `set_subtitle`, `set_details` (functions) - take in the HTML of the relevant section
--   `add_action` (function) - accepts two parameters, `html` and `func` - respectively determining the HTML of the action and the callback when the action is pressed.
+```js
+new Gantt('#gantt', tasks, {
+    row_keys: [1,2,3,4,5],
+});
+```
+This example will display 5 rows, even if some of them have no tasks. Useful for rendering empty rows or when tasks are dynamically added to the chart.
 
-### API
+## Handling Incomplete Dates
 
-Frappe Gantt exposes a few helpful methods for you to interact with the chart:
+Tasks may omit `start`, `end` or both. Incomplete tasks are visually marked and rendered using the Gantt option `default_duration`:
 
-| **Name**            | **Description**                                       | **Parameters**                                                                                                                                                               |
-| ------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.update_options`   | Re-renders the chart after updating specific options. | `new_options` - object containing new options.                                                                                                                               |
-| `.change_view_mode` | Updates the view mode.                                | `view_mode` - Name of view mode _or_ view mode object (see above) and `maintain_pos` - whether to go back to current scroll position after rerendering, defaults to `false`. |
-| `.scroll_current`   | Scrolls to the current date                           | No parameters.                                                                                                                                                               |
-| `.update_task`      | Re-renders a specific task bar alone                  | `task_id` - id of task and `new_details` - object containing the task properties to be updated.                                                                              |
+```js
+new Gantt('#gantt', [
+    { id: 'a', name: 'Starts today automatically' },
+    { id: 'b', name: 'Known start', start: '2026-01-10' },
+    { id: 'c', name: 'Known end', end: '2026-01-20' },
+    { id: 'd', name: 'Known end', start: '2026-01-10', duration: '5d' },
+], {
+    default_duration: 2,
+});
+```
+
+- If task `duration` is provided and `end` is missing, the end date is calculated from `start + duration`.
+    - if the `duration` is missed and `end` is missing, the end date is calculated from `start + default_duration`.
+- If `start` is missing and `end` is provided, the start date is calculated from `end - default_duration`. 
+- If both `start` and `end` are missing, the task is placed at the current date with a duration of `default_duration`.
+
+## View Mode Configuration
+
+The `view_modes` option defines all available timeline views. It is an array of objects.
+
+| Property | Description |
+| --- | --- |
+| `name` | View mode name. |
+| `padding` | Timeline padding around the task range, for example `'7d'`, `'1m'` or `[left, right]`. |
+| `today_button_left_scroll_padding` | Optional left-side offset used when the Today button scrolls. Uses the same duration format as `padding`; if an array is supplied, the left value is used. |
+| `step` | Timeline column interval, for example `'1d'`, `'7d'`, `'1m'` or `'1y'`. |
+| `date_format` | Date format used by this view mode. |
+| `column_width` | Column width for this view mode. |
+| `snap_at` | Drag and resize snap interval for this view mode. |
+| `lower_text` | Lower header formatter string or function `(currentDate, previousDate, lang)`. |
+| `upper_text` | Upper header formatter string or function `(currentDate, previousDate, lang)`. |
+| `upper_text_frequency` | Performance hint for how often upper text has a value. |
+| `thick_line` | Function that decides whether a timeline line is emphasized. |
+
+Example:
+
+```js
+const viewModes = [
+    {
+        name: 'Day',
+        padding: '7d',
+        today_button_left_scroll_padding: '3d',
+        step: '1d',
+        date_format: 'YYYY-MM-dd',
+        column_width: 45,
+        lower_text: 'dd',
+        upper_text: 'MMMM',
+    },
+];
+
+new Gantt('#gantt', tasks, {
+    view_modes: viewModes,
+    view_mode: 'Day',
+});
+```
+
+When custom `view_modes` are supplied, an explicitly configured `view_mode` is respected if it exists in the custom list. Otherwise, the first custom view mode is used.
+
+## Simple View Mode Builder
+
+The package includes `tools/view-mode-builder.js` for simplified view definitions.
+It is focused to simplify the header and thick line definitions. The builder accepts a simple configuration object and returns a full view mode array.
+
+```js
+import { buildViewModesFromSimpleConfig } from 'frappe-gantt-aggregation/tools/view-mode-builder.js';
+
+const viewModes = buildViewModesFromSimpleConfig({
+    Day: {
+        padding: '7d',
+        today_button_left_scroll_padding: '3d',
+        step: '1d',
+        date_format: 'YYYY-MM-dd',
+        column_width: 45,
+        header: {
+            upper: { date_format: 'MMMM', interval: 'Month' },
+            lower: { date_format: 'dd', interval: 'Date' },
+        },
+        thick_line: { interval: 'week', value: 1 },
+    },
+});
+```
+
+Supported header helper tokens include `~weekRange` for week ranges and `~decade` for decade labels.
+
+## Popup Configuration
+
+`popup` is a function. If it returns:
+
+-   `false`, no popup is shown.
+-   `undefined`, the popup is rendered by mutating the supplied popup context.
+-   an HTML string, that string is used as popup content.
+
+The function receives one context object:
+
+```js
+new Gantt('#gantt', tasks, {
+    popup(ctx) {
+        ctx.set_title(ctx.task.name);
+        ctx.set_subtitle(ctx.task.description || '');
+        ctx.set_details('Custom details');
+    },
+});
+```
+
+Context properties:
+
+| Property | Description |
+| --- | --- |
+| `task` | Current task or aggregation bar. |
+| `chart` | The Gantt instance. |
+| `get_title`, `get_subtitle`, `get_details` | Read popup section nodes. |
+| `set_title`, `set_subtitle`, `set_details` | Set popup section HTML. |
+| `add_action` | Adds an action button. Signature: `(html, callback)`. |
+
+### Aggregation popup options
+
+```js
+new Gantt('#gantt', tasks, {
+    popup_aggregate_style: 'table',
+    popup_aggregate_include_upper_row_tasks: true,
+    popup_aggregate_expand_tasks: true,
+    popup_aggregate_gantt_width: 420,
+});
+```
+
+`popup_aggregate_expand_tasks` creates a nested read-only Gantt inside the popup. The nested chart uses the same view mode as the main chart, disables recursive aggregation popups and renders one task per popup row.
+
+## Date Formatting
+
+By default, the package uses its built-in date formatter. To use an application formatter, pass `date_formatter`:
+
+```js
+new Gantt('#gantt', tasks, {
+    date_formatter: window.exfTools.date.format.bind(window.exfTools.date),
+    date_format_default: 'yyyy-MM-dd HH:mm:ss.SSS',
+});
+```
+
+The formatter receives `(date, format_string, lang)`. `date_format_default` is used when the chart formats a date without an explicit format.
+
+## Scrolling and Refreshing
+
+Initial scrolling is controlled by `scroll_to`.
+
+```js
+new Gantt('#gantt', tasks, {
+    scroll_to: 'today',
+});
+```
+
+`refresh(tasks)` preserves the current horizontal `scrollLeft` by default. This prevents repeated data updates from jumping back to `scroll_to`.
+
+```js
+gantt.refresh(tasks);          // keep exact current horizontal scroll position
+gantt.refresh(tasks, true);    // apply options.scroll_to
+gantt.refresh(tasks, 'today'); // explicitly scroll to today
+gantt.refresh(tasks, 'start'); // explicitly scroll to start
+gantt.refresh(tasks, date);    // explicitly scroll to a Date
+```
+
+Use `on_today_missing` to react when today is outside the rendered interval:
+
+```js
+new Gantt('#gantt', tasks, {
+    on_today_missing(today, gantt_start, gantt_end) {
+        console.log('Today is outside the rendered interval', {
+            today,
+            gantt_start,
+            gantt_end,
+        });
+    },
+});
+```
+
+`include_today_in_padding: true` can extend the rendered date range so today is present even when it is outside the task range.
+
+## API
+
+| Method | Description |
+| --- | --- |
+| `update_options(new_options)` | Updates options and re-renders the chart. |
+| `change_view_mode(view_mode, maintain_pos)` | Changes the current view mode. `view_mode` can be a name or a view mode object. |
+| `scroll_current(animate = true, trigger_today_missing = false)` | Scrolls to today if it is inside the rendered interval. |
+| `update_task(task_id, new_details)` | Updates and re-renders one task bar. |
+| `refresh(tasks, scroll_after_refresh = false)` | Replaces tasks and re-renders the chart. By default it preserves the current horizontal scroll position. |
 
 ## Development Setup
 
-If you want to contribute enhancements or fixes:
+```bash
+npm install
+npm run build
+```
 
-1. Clone this repo.
-2. `cd` into project directory.
-3. Run `pnpm i` to install dependencies.
-4. `pnpm run build` to build files - or `pnpm run build-dev` to build and watch for changes.
-5. Open `index.html` in your browser.
-6. Make your code changes and test them.
+Use `npm run dev` to build in watch mode.
 
 <br />
 <br />
 <div align="center" style="padding-top: 0.75rem;">
-	<a href="https://frappe.io" target="_blank">
-		<picture>
-			<source media="(prefers-color-scheme: dark)" srcset="https://frappe.io/files/Frappe-white.png">
-			<img src="https://frappe.io/files/Frappe-black.png" alt="Frappe Technologies" height="28"/>
-		</picture>
-	</a>
+    <a href="https://frappe.io" target="_blank">
+        <picture>
+            <source media="(prefers-color-scheme: dark)" srcset="https://frappe.io/files/Frappe-white.png">
+            <img src="https://frappe.io/files/Frappe-black.png" alt="Frappe Technologies" height="28"/>
+        </picture>
+    </a>
 </div>
