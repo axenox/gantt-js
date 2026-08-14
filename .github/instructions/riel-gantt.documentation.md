@@ -321,6 +321,7 @@ The action is started manually via `workflow_dispatch` and performs the followin
 9. Optionally create the version commit and Git tag if `publish = true` is selected when starting the workflow manually
 10. Optionally publish to NPM if `publish = true` is selected when starting the workflow manually
 11. Push the version commit and Git tag to the selected workflow branch
+12. Create a GitHub release for the new version tag and attach the generated `.tgz` package as a release asset
 
 The NPM package contents are limited via `files` in `src/gantt-js/package.json`. Included are:
 
@@ -332,7 +333,7 @@ The NPM package contents are limited via `files` in `src/gantt-js/package.json`.
 
 When starting the workflow manually, `version_bump` can be used to select whether a `patch`, `minor`, or `major` version bump should be performed before publishing. The version bump only runs for real publications with `publish = true`; pure pack/artifact runs do not change the version. The workflow uses `npm install` instead of `npm ci` so npm can synchronize platform-specific optional dependencies, for example from Vite, Rollup, and esbuild, in `package-lock.json` on the Linux runner before creating the version commit.
 
-For a real publication, npm Trusted Publishing is used. For this, the package on npmjs.com must be linked under `Trusted Publisher` with the GitHub repository and the `publish-npm.yml` workflow. The workflow authenticates `npm publish` through GitHub Actions OIDC with `permissions: id-token: write`; a permanent `NPM_TOKEN` secret is no longer required for publishing. Trusted Publishing requires npm CLI 11.5.1 or newer, so the workflow installs npm 11 before publishing. To write back the version commit and tag, the workflow also uses `permissions: contents: write`.
+For a real publication, npm Trusted Publishing is used. For this, the package on npmjs.com must be linked under `Trusted Publisher` with the GitHub repository and the `publish-npm.yml` workflow. The workflow authenticates `npm publish` through GitHub Actions OIDC with `permissions: id-token: write`; a permanent `NPM_TOKEN` secret is no longer required for publishing. Trusted Publishing requires npm CLI 11.5.1 or newer, so the workflow installs npm 11 before publishing. To write back the version commit, tag and GitHub release, the workflow also uses `permissions: contents: write`. Publications with `npm_tag: latest` are created as normal GitHub releases; other npm tags such as `next` or `beta` are marked as prereleases.
 
 Affected files:
 
