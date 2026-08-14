@@ -5,7 +5,7 @@ import Arrow from './arrow';
 import Bar from './bar';
 import Popup from './popup';
 
-import { DEFAULT_OPTIONS, DEFAULT_VIEW_MODES } from './defaults';
+import { DEFAULT_OPTIONS, DEFAULT_VIEW_MODES, normalizeViewModes } from './defaults';
 
 import './styles/gantt.css';
 
@@ -88,20 +88,9 @@ export default class Gantt {
             // >>> SR: Respect configured initial view mode --------------------
             const requested_view_mode = options.view_mode;
             // <<< SR: Respect configured initial view mode --------------------
-            options.view_modes = options.view_modes.map((mode) => {
-                if (typeof mode === 'string') {
-                    const predefined_mode = DEFAULT_VIEW_MODES.find(
-                        (d) => d.name === mode,
-                    );
-                    if (!predefined_mode)
-                        console.error(
-                            `The view mode "${mode}" is not predefined in Riel Gantt. Please define the view mode object instead.`,
-                        );
-
-                    return predefined_mode;
-                }
-                return mode;
-            });
+            // >>> SR: Simple view mode config --------------------------------
+            options.view_modes = normalizeViewModes(options.view_modes);
+            // <<< SR: Simple view mode config --------------------------------
             // >>> SR: Respect configured initial view mode --------------------
             // Keep an explicitly configured view_mode (for example 'Quartale')
             // instead of always forcing the first view_modes entry. If no valid

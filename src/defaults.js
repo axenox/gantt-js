@@ -22,6 +22,187 @@ function formatWeek(d, ld, lang) {
     return `${date_utils.format(d, beginFormat, lang)} - ${date_utils.format(endOfWeek, endFormat, lang)}`;
 }
 
+// >>> SR: Simple view mode config --------------------------------------------
+/**
+ * Checks whether a header cell should use its border format for the configured interval.
+ */
+function isHeaderBorder(d, ld, interval) {
+    if (!ld) return true;
+
+    switch (String(interval || '').toLowerCase()) {
+        case 'date':
+        case 'day':
+            return d.getDate() !== ld.getDate();
+        case 'month':
+            return d.getMonth() !== ld.getMonth();
+        case 'year':
+            return d.getFullYear() !== ld.getFullYear();
+        case 'decade':
+            return getDecade(d) !== getDecade(ld);
+        default:
+            return true;
+    }
+}
+
+/**
+ * Finds a quarter or year boundary inside a rendered interval for thick lines.
+ */
+function getQuarterStartInInterval(d, step, unit) {
+    const intervalStart = date_utils.start_of(d, 'day');
+    const intervalEnd = date_utils.add(intervalStart, step, unit);
+    const year = intervalStart.getFullYear();
+
+    for (const month of [0, 3, 6, 9]) {
+        const quarterStart = new Date(year, month, 1);
+        if (quarterStart >= intervalStart && quarterStart < intervalEnd) {
+            return quarterStart;
+        }
+    }
+
+    const nextYearStart = new Date(year + 1, 0, 1);
+    return nextYearStart >= intervalStart && nextYearStart < intervalEnd
+        ? nextYearStart
+        : false;
+}
+
+/**
+ * Resolves an upper/lower header definition from object or array based simple configs.
+ */
+function getHeaderDefinition(header, level) {
+    if (!header) return null;
+    if (!Array.isArray(header)) return header[level] || null;
+
+    return header.find((entry) => {
+        if (!entry || typeof entry !== 'object') return false;
+        return (
+            entry.level === level ||
+            entry.name === level ||
+            entry.type === level ||
+            entry.position === level ||
+            entry.header === level
+        );
+    }) || null;
+}
+
+/**
+ * Creates a Riel Gantt header formatter from a simple header definition.
+ */
+function createHeaderFormatter(def) {
+    if (!def) return undefined;
+    const { date_format = '', date_format_at_border = '', interval = null } = def;
+
+    // Token: ~weekRange (start - end of week)
+    if (date_format === '~weekRange') return formatWeek;
+
+    // No interval: always use date_format as string
+    if (!interval) {
+        return date_format || '';
+    }
+
+    // Token: ~decade (2020, 2030, ...))
+    const formatValue = (d, fmt, lang) => {
+        if (!fmt) return '';
+        if (fmt === '~decade') return getDecade(d);
+        return date_utils.format(d, fmt, lang);
+    };
+
+    // If no date_format_at_border is given, date_format is used.
+    const borderFmt = date_format_at_border ?? date_format ?? '';
+    const normalFmt = date_format ?? '';
+
+    return (d, ld, lang) => {
+        const border = isHeaderBorder(d, ld, interval);
+        if (!normalFmt) {
+            return border ? formatValue(d, borderFmt, lang) : '';
+        }
+
+        // Standard case
+        return border
+            ? formatValue(d, borderFmt, lang)
+            : formatValue(d, normalFmt, lang);
+    };
+}
+
+/**
+ * Creates a thick-line function from a simple view mode thick_line definition.
+ */
+function createThickLineFormatter(thickLine) {
+    if (!thickLine || typeof thickLine === 'function') return thickLine;
+
+    return (d, ctx = {}) => {
+        if (thickLine.interval === 'week') {
+            return d.getDay() === thickLine.value;
+        }
+        if (thickLine.interval === 'month_range_in_days') {
+            return d.getDate() >= thickLine.from && d.getDate() <= thickLine.to;
+        }
+        if (thickLine.interval === 'year_quarter') {
+            return getQuarterStartInInterval(
+                d,
+                ctx.step ?? 1,
+                ctx.unit ?? 'day',
+            );
+        }
+        return false;
+    };
+}
+
+/**
+ * Converts one simple or classic view mode object to the normal Riel Gantt format.
+ */
+function normalizeViewMode(mode, name) {
+    if (!mode || typeof mode !== 'object') return mode;
+
+    const upperDef = getHeaderDefinition(mode.header, 'upper');
+    const lowerDef = getHeaderDefinition(mode.header, 'lower');
+    const normalized = {
+        ...mode,
+        name: mode.name ?? name,
+    };
+
+    if (normalized.upper_text === undefined && upperDef) {
+        normalized.upper_text = createHeaderFormatter(upperDef);
+    }
+    if (normalized.lower_text === undefined && lowerDef) {
+        normalized.lower_text = createHeaderFormatter(lowerDef);
+    }
+    if (mode.thick_line && typeof mode.thick_line !== 'function') {
+        normalized.thick_line = createThickLineFormatter(mode.thick_line);
+    }
+
+    return normalized;
+}
+
+/**
+ * Normalizes configured view modes while preserving classic view mode objects and names.
+ */
+function normalizeViewModes(viewModes) {
+    if (Array.isArray(viewModes)) {
+        return viewModes.map((mode) => {
+            if (typeof mode === 'string') {
+                const predefined_mode = DEFAULT_VIEW_MODES.find(
+                    (d) => d.name === mode,
+                );
+                if (!predefined_mode) {
+                    console.error(
+                        `The view mode "${mode}" is not predefined in Riel Gantt. Please define the view mode object instead.`,
+                    );
+                }
+                return predefined_mode;
+            }
+
+            return normalizeViewMode(mode);
+        });
+    }
+
+    if (!viewModes || typeof viewModes !== 'object') return [];
+
+    return Object.entries(viewModes).map(([name, mode]) =>
+        normalizeViewMode(mode, name),
+    );
+}
+// <<< SR: Simple view mode config --------------------------------------------
+
 const DEFAULT_VIEW_MODES = [
     // >>> SR: Bar Aggregation TEST 2-------------------------------------------------
     // It currently doesn't work properly with PowerUI
@@ -266,4 +447,9 @@ const DEFAULT_OPTIONS = {
     // <<< SR: Bar Aggregation -------------------------------------------------
 };
 
-export { DEFAULT_OPTIONS, DEFAULT_VIEW_MODES };
+export {
+    DEFAULT_OPTIONS,
+    DEFAULT_VIEW_MODES,
+    normalizeViewMode,
+    normalizeViewModes,
+};
