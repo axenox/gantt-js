@@ -93,7 +93,7 @@ function createHeaderFormatter(def) {
 
 /**
  * 
- * Builds frappe-gantt view modes from a simple PowerUI friendly configuration object.
+ * Builds riel-gantt view modes from a simple PowerUI friendly configuration object.
  * 
  * @param simpleConfig
  * @returns {{name: *, padding: *, step: *, date_format: *, column_width, snap_at, upper_text_frequency, upper_text: string|(function(*, *, *): string)|*|(function(*, *, *): (string|string|*)), lower_text: string|(function(*, *, *): string)|*|(function(*, *, *): (string|string|*)), thick_line: (function(*): (boolean|*))|undefined}[]}

@@ -1,10 +1,10 @@
 {
-    "name": "frappe-gantt-aggregation",
-    "version": "1.0.9",
+    "name": "riel-gantt",
+    "version": "1.0.0",
     "description": "Upgraded version of frappe-gantt with support of multiple tasks per row and other features.",
-    "main": "./dist/frappe-gantt-aggregation.umd.js",
-    "module": "./dist/frappe-gantt-aggregation.es.js",
-    "style": "./dist/frappe-gantt-aggregation.css",
+    "main": "./dist/riel-gantt.umd.js",
+    "module": "./dist/riel-gantt.es.js",
+    "style": "./dist/riel-gantt.css",
     "type": "module",
     "scripts": {
         "dev": "vite build --watch",
@@ -28,20 +28,22 @@
     ],
     "exports": {
         ".": {
-            "require": "./dist/frappe-gantt-aggregation.umd.js",
-            "import": "./dist/frappe-gantt-aggregation.es.js",
-            "style": "./dist/frappe-gantt-aggregation.css"
+            "require": "./dist/riel-gantt.umd.js",
+            "import": "./dist/riel-gantt.es.js",
+            "style": "./dist/riel-gantt.css"
         }
     },
     "keywords": [
         "gantt",
         "svg",
-        "simple gantt",
+        "simple Gantt",
         "project timeline",
-        "interactive gantt",
+        "interactive Gantt",
         "project management",
-        "frappe-gantt-aggregation",
-        "timeline-aggregation",
+        "riel-gantt",
+        "timeline aggregation",
+        "task aggregation",
+        "Gantt aggregation",
         "multiple-tasks-per-row"
     ],
     "author": "Sergej Riel",
