@@ -83,7 +83,7 @@ jobs:
                   git config user.email "github-actions[bot]@users.noreply.github.com"
                   git add package.json package-lock.json
                   git commit -m "Bump package version to v$VERSION"
-                  git tag "v$VERSION"
+                  git tag -a "v$VERSION" -m "v$VERSION"
 
             - name: Publish package to npm
               if: ${{ inputs.publish }}
@@ -98,4 +98,27 @@ jobs:
 
             - name: Push version commit and tag
               if: ${{ inputs.publish }}
-              run: git push origin HEAD:${{ github.ref_name }} --follow-tags
+              run: |
+                  VERSION=$(node -p "require('./package.json').version")
+                  git push origin HEAD:${{ github.ref_name }} "v$VERSION"
+
+            - name: Create GitHub release
+              if: ${{ inputs.publish }}
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  VERSION=$(node -p "require('./package.json').version")
+                  TAG_NAME="v$VERSION"
+                  RELEASE_TITLE="riel-gantt $TAG_NAME"
+                  RELEASE_NOTES="Published riel-gantt@$VERSION to npm with dist-tag '${{ inputs.npm_tag }}'."
+
+                  if [[ "${{ inputs.npm_tag }}" == "latest" ]]; then
+                      gh release create "$TAG_NAME" *.tgz \
+                          --title "$RELEASE_TITLE" \
+                          --notes "$RELEASE_NOTES"
+                  else
+                      gh release create "$TAG_NAME" *.tgz \
+                          --title "$RELEASE_TITLE" \
+                          --notes "$RELEASE_NOTES" \
+                          --prerelease
+                  fi
