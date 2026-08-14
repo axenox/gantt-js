@@ -20,7 +20,6 @@
     "files": [
         "dist",
         "src/styles",
-        "tools/view-mode-builder.js",
         "tools/color-utils.js",
         "assets",
         "README.md",

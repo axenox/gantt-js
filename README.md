@@ -249,29 +249,46 @@ new Gantt('#gantt', tasks, {
 
 When custom `view_modes` are supplied, an explicitly configured `view_mode` is respected if it exists in the custom list. Otherwise, the first custom view mode is used.
 
-## Simple View Mode Builder
+## Simple View Mode Config
 
-The package includes `tools/view-mode-builder.js` for simplified view definitions.
-It is focused to simplify the header and thick line definitions. The builder accepts a simple configuration object and returns a full view mode array.
+`view_modes` also accepts a simplified configuration object directly. Riel Gantt detects this shape automatically and converts the simplified header and thick line definitions internally.
 
 ```js
-import { buildViewModesFromSimpleConfig } from 'riel-gantt/tools/view-mode-builder.js';
-
-const viewModes = buildViewModesFromSimpleConfig({
-    Day: {
-        padding: '7d',
-        today_button_left_scroll_padding: '3d',
-        step: '1d',
-        date_format: 'YYYY-MM-dd',
-        column_width: 45,
-        header: {
-            upper: { date_format: 'MMMM', interval: 'Month' },
-            lower: { date_format: 'dd', interval: 'Date' },
+new Gantt('#gantt', tasks, {
+    view_modes: {
+        Day: {
+            padding: '7d',
+            today_button_left_scroll_padding: '3d',
+            step: '1d',
+            date_format: 'YYYY-MM-dd',
+            column_width: 45,
+            header: {
+                upper: { date_format: 'MMMM', interval: 'Month' },
+                lower: { date_format: 'dd', interval: 'Date' },
+            },
+            thick_line: { interval: 'week', value: 1 },
         },
-        thick_line: { interval: 'week', value: 1 },
     },
 });
 ```
+
+Most standard view mode properties from [View Mode Configuration](#view-mode-configuration) can be used unchanged. The simplified config differs only in how view modes are named and how header and thick line helpers are described:
+
+| Property | Description |
+| --- | --- |
+| `view_modes` object keys | The object key is used as the view mode `name`, for example `Day`, `Week` or `Monat_Prod`. A `name` property inside the view mode can still be used and takes precedence. |
+| `header` | Simplified replacement for `upper_text` and `lower_text`. It can define `header.upper` and `header.lower`. If classic `upper_text` or `lower_text` are also set, they take precedence over `header`. |
+| `header.upper` | Definition for the upper timeline header. Converted internally to `upper_text`. |
+| `header.lower` | Definition for the lower timeline header. Converted internally to `lower_text`. |
+| `header.*.date_format` | Format used for normal header cells. If `interval` is not set, this format is used for every cell. |
+| `header.*.date_format_at_border` | Optional format used when the configured `interval` boundary changes. If omitted, `date_format` is used. |
+| `header.*.interval` | Boundary detector for the header text. Supported values are `Date`, `Day`, `Month`, `Year` and `Decade`. If omitted, no boundary check is applied. |
+| `header.*.date_format: '~weekRange'` | Special lower-header token for week views. It renders a range such as `01 Jan - 07`. |
+| `header.*.date_format_at_border: '~decade'` | Special token for decade labels, for example `2020`, `2030`. |
+| `thick_line` object | Simplified replacement for a `thick_line` function. If a classic `thick_line` function is supplied, it is used unchanged. |
+| `thick_line.interval: 'week'` | Emphasizes days where `date.getDay()` equals `thick_line.value`. Example: `value: 1` for Monday. |
+| `thick_line.interval: 'month_range_in_days'` | Emphasizes dates where the day of month is between `thick_line.from` and `thick_line.to`. |
+| `thick_line.interval: 'year_quarter'` | Emphasizes quarter starts inside the rendered interval, useful for wider steps such as weekly quarter views. |
 
 Supported header helper tokens include `~weekRange` for week ranges and `~decade` for decade labels.
 

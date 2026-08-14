@@ -1,5 +1,33 @@
 # New Features
 
+<!-- >>> SR: Simple view mode config ------------------------------------------ -->
+## Simple view mode config directly in `view_modes`
+
+`view_modes` can still receive classic Riel Gantt view modes as an array, or it can now directly receive a simplified configuration with `header.upper` and `header.lower`.
+
+Both header variants are compatible:
+
+```js
+view_modes: {
+  Day: {
+    step: '1d',
+    date_format: 'YYYY-MM-dd',
+    header: {
+      upper: { interval: 'Month', date_format_at_border: 'MMMM' },
+      lower: { interval: 'Date', date_format: 'dd' },
+    },
+  },
+}
+```
+
+Classic properties such as `upper_text` and `lower_text` can still be set directly. If they exist together with `header`, the direct properties take precedence and `header` only fills missing formatters. A separate builder call is no longer needed.
+
+Affected files:
+
+- `src/gantt-js/src/defaults.js`
+- `src/gantt-js/src/index.js`
+<!-- <<< SR: Simple view mode config ------------------------------------------ -->
+
 <!-- >>> SR: Initial auto moving labels ------------------------------------------ -->
 ## Initially visible labels with `auto_move_label`
 
@@ -124,13 +152,12 @@ today - today_button_left_scroll_padding
 
 This means the today line is not placed directly at the far-left edge, but is shifted to the right by the configured padding value. If there is not enough rendered area on the left, the scroll target is clamped to `gantt_start`.
 
-For view modes generated via `buildViewModesFromSimpleConfig()`, `today_button_left_scroll_padding` is copied from the simple view configuration.
+For simple view mode configurations, `today_button_left_scroll_padding` is copied directly from the configuration.
 
 Affected files:
 
 - `src/gantt-js/src/defaults.js`
 - `src/gantt-js/src/index.js`
-- `src/gantt-js/tools/view-mode-builder.js`
 <!-- <<< SR: Today button left scroll padding ------------------------------------------ -->
 
 <!-- >>> SR: Respect configured initial view mode ------------------------------------------ -->
@@ -141,7 +168,7 @@ When custom `view_modes` are passed in, an explicitly set `view_mode` is now res
 Example:
 
 ```
-view_modes: customViewModes,
+view_modes: VIEW_MODE_SIMPLE,
 view_mode: 'Quarters',
 ```
 
@@ -327,7 +354,6 @@ The NPM package contents are limited via `files` in `src/gantt-js/package.json`.
 
 - `dist`
 - `src/styles`, including `riel-gantt-gantt.css`
-- `tools/view-mode-builder.js`
 - `README.md`
 - `license.txt`
 
