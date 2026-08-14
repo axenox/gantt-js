@@ -1,14 +1,13 @@
 <div align="center" markdown="1">
-    <img src=".github/gantt-logo.jpg" width="80">
-    <h1>Frappe Gantt Aggregation</h1>
+    <h1>Riel Gantt</h1>
 
 **A modern, configurable Gantt chart library with aggregation support for overlapping tasks.**
 
 </div>
 
-![Aggregations Image](assets/frappe-gantt-aggregation-image.png)
+![Aggregations Image](assets/riel-gantt-image.png)
 
-`frappe-gantt-aggregation` is a fork of [Frappe Gantt](https://github.com/frappe/gantt). It keeps the familiar Frappe Gantt API and adds support for multiple tasks in the same logical row, aggregation bars for overlaps, configurable lanes, enhanced popups, custom date formatting and more simplified view configuration.
+`riel-gantt` is a fork of [Frappe Gantt](https://github.com/frappe/gantt). It keeps the familiar Frappe Gantt API and adds support for multiple tasks in the same logical row, aggregation bars for overlaps, configurable lanes, enhanced popups, custom date formatting and more simplified view configuration.
 
 ## Key Features
 
@@ -23,30 +22,30 @@
 ## Installation
 
 ```bash
-npm install frappe-gantt-aggregation
+npm install riel-gantt
 ```
 
 ### ES modules
 
 ```js
-import Gantt from 'frappe-gantt-aggregation';
-import 'frappe-gantt-aggregation/dist/frappe-gantt-aggregation.css';
+import Gantt from 'riel-gantt';
+import 'riel-gantt/dist/riel-gantt.css';
 ```
 
 ### Browser bundle
 
 ```html
-<script src="frappe-gantt-aggregation.umd.js"></script>
-<link rel="stylesheet" href="frappe-gantt-aggregation.css" />
+<script src="riel-gantt.umd.js"></script>
+<link rel="stylesheet" href="riel-gantt.css" />
 ```
 
 ### CDN
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/frappe-gantt-aggregation/dist/frappe-gantt-aggregation.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/riel-gantt/dist/riel-gantt.umd.js"></script>
 <link
     rel="stylesheet"
-    href="https://cdn.jsdelivr.net/npm/frappe-gantt-aggregation/dist/frappe-gantt-aggregation.css"
+    href="https://cdn.jsdelivr.net/npm/riel-gantt/dist/riel-gantt.css"
 />
 ```
 
@@ -84,7 +83,7 @@ Tasks with the same `lineIndex` are rendered in the same logical row. If tasks o
 
 ## Task Properties
 
-Frappe Gantt Aggregation supports the standard Frappe Gantt task fields and adds row, priority and styling properties.
+Riel Gantt supports the standard Frappe Gantt task fields and adds row, priority and styling properties.
 
 | Property | Description                                                                                                                                                           |
 | --- |-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -256,7 +255,7 @@ The package includes `tools/view-mode-builder.js` for simplified view definition
 It is focused to simplify the header and thick line definitions. The builder accepts a simple configuration object and returns a full view mode array.
 
 ```js
-import { buildViewModesFromSimpleConfig } from 'frappe-gantt-aggregation/tools/view-mode-builder.js';
+import { buildViewModesFromSimpleConfig } from 'riel-gantt/tools/view-mode-builder.js';
 
 const viewModes = buildViewModesFromSimpleConfig({
     Day: {
@@ -389,11 +388,3 @@ Use `npm run dev` to build in watch mode.
 
 <br />
 <br />
-<div align="center" style="padding-top: 0.75rem;">
-    <a href="https://frappe.io" target="_blank">
-        <picture>
-            <source media="(prefers-color-scheme: dark)" srcset="https://frappe.io/files/Frappe-white.png">
-            <img src="https://frappe.io/files/Frappe-black.png" alt="Frappe Technologies" height="28"/>
-        </picture>
-    </a>
-</div>

@@ -41,7 +41,7 @@ export default class Gantt {
             svg_element = element;
         } else {
             throw new TypeError(
-                'Frappe Gantt only supports usage of a string CSS selector,' +
+                'Riel Gantt only supports usage of a string CSS selector,' +
                     " HTML DOM element or SVG DOM element for the 'element' parameter",
             );
         }
@@ -95,7 +95,7 @@ export default class Gantt {
                     );
                     if (!predefined_mode)
                         console.error(
-                            `The view mode "${mode}" is not predefined in Frappe Gantt. Please define the view mode object instead.`,
+                            `The view mode "${mode}" is not predefined in Riel Gantt. Please define the view mode object instead.`,
                         );
 
                     return predefined_mode;

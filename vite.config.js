@@ -11,16 +11,16 @@ export default defineConfig({
       name: 'Gantt', // global name for iife/umd
       formats: ['es', 'umd', 'iife'],
       fileName: (format) => {
-        if (format === 'iife') return 'frappe-gantt-aggregation.js';
-        if (format === 'es') return 'frappe-gantt-aggregation.es.js';
-        if (format === 'umd') return 'frappe-gantt-aggregation.umd.js';
-        return `frappe-gantt-aggregation.${format}.js`;
+        if (format === 'iife') return 'riel-gantt.js';
+        if (format === 'es') return 'riel-gantt.es.js';
+        if (format === 'umd') return 'riel-gantt.umd.js';
+        return `riel-gantt.${format}.js`;
       },
     },
 
     rollupOptions: {
       output: {
-        assetFileNames: 'frappe-gantt-aggregation[extname]',
+        assetFileNames: 'riel-gantt[extname]',
         interop: 'auto',
       },
     },
