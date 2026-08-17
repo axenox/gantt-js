@@ -380,7 +380,10 @@ const DEFAULT_OPTIONS = {
         );*/
       // <<< SR: Bar Aggregation -----------------------------------------------
     },
-    popup_on: 'click', //hover
+    // >>> SR: Hover click popup -----------------------------------------------
+    // Values: 'click' | 'hover'
+    popup_on: 'click',
+    // <<< SR: Hover click popup -----------------------------------------------
     readonly_progress: false,
     readonly_dates: false,
     readonly: false,

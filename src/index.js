@@ -70,6 +70,10 @@ export default class Gantt {
             append_to: this.$container,
         });
 
+        // >>> SR: Hover click popup -------------------------------------------
+        this._popup_locked_by_click = false;
+        // <<< SR: Hover click popup -------------------------------------------
+
         // >>> SR: Bar Aggregation ---------------------------------------------
         // >>> SR: Refresh without scroll animation -----------------------------
         this._suppress_scroll_strategy = false;
@@ -1534,6 +1538,9 @@ export default class Gantt {
                 is_dragging = true;
             }
 
+            // >>> SR: Hover click popup ---------------------------------------
+            this.unlock_popup_on_click();
+            // <<< SR: Hover click popup ---------------------------------------
             if (this.popup) this.popup.hide();
 
             x_on_start = e.offsetX || e.layerX;
@@ -1936,6 +1943,45 @@ export default class Gantt {
             return bar.task.id === id;
         });
     }
+
+    // >>> SR: Hover click popup -----------------------------------------------
+    /**
+     * Checks whether hover popups should support click pinning.
+     */
+    is_hover_popup_enabled() {
+        return this.options.popup_on === 'hover';
+    }
+
+    /**
+     * Checks whether a hover popup is currently pinned by a bar click.
+     */
+    is_popup_locked_by_click() {
+        return this.is_hover_popup_enabled() && this._popup_locked_by_click;
+    }
+
+    /**
+     * Pins the current popup so hover leave events do not close it.
+     */
+    lock_popup_on_click() {
+        if (this.is_hover_popup_enabled()) {
+            this._popup_locked_by_click = true;
+        }
+    }
+
+    /**
+     * Restores hover behavior after a pinned hover popup.
+     */
+    unlock_popup_on_click() {
+        this._popup_locked_by_click = false;
+    }
+
+    /**
+     * Checks whether a document click target belongs to a task bar or its handle.
+     */
+    is_bar_popup_target(target) {
+        return !!target?.closest?.('.bar-wrapper, .handle');
+    }
+    // <<< SR: Hover click popup -----------------------------------------------
 
     show_popup(opts) {
         if (this.options.popup === false) return;
@@ -2733,12 +2779,23 @@ export default class Gantt {
      */
     bind_outside_click() {
       this._onDocClick = (e) => {
-  
+   
         if (this.bar_being_dragged) return;
-  
+   
         const container = this.$container;
         const target = e.target;
-  
+
+        // >>> SR: Hover click popup -------------------------------------------
+        if (
+            this.is_hover_popup_enabled() &&
+            !this.is_bar_popup_target(target) &&
+            !this.$popup_wrapper?.contains(target)
+        ) {
+            this.unlock_popup_on_click();
+            this.hide_popup();
+        }
+        // <<< SR: Hover click popup -------------------------------------------
+   
         // >>> SR: Aggregation popup Gantt outside click -----------------------
         if (
             (container && container.contains(target)) ||

@@ -375,7 +375,10 @@ export default class Bar {
             ]);
         });
 
-        if (this.gantt.options.popup_on === 'click') {
+        if (
+            this.gantt.options.popup_on === 'click' ||
+            this.gantt.options.popup_on === 'hover'
+        ) {
             $.on(this.group, 'mouseup', (e) => {
                 const posX = e.offsetX || e.layerX;
                 if (this.$handle_progress) {
@@ -383,6 +386,9 @@ export default class Bar {
                     if (cx > posX - 1 && cx < posX + 1) return;
                     if (this.gantt.bar_being_dragged) return;
                 }
+                // >>> SR: Hover click popup -----------------------------------
+                this.gantt.lock_popup_on_click();
+                // <<< SR: Hover click popup -----------------------------------
                 this.gantt.show_popup({
                     x: e.offsetX || e.layerX,
                     y: e.offsetY || e.layerY,
@@ -394,7 +400,12 @@ export default class Bar {
         let timeout;
         $.on(this.group, 'mouseenter', (e) => {
             timeout = setTimeout(() => {
-                if (this.gantt.options.popup_on === 'hover')
+                // >>> SR: Hover click popup -----------------------------------
+                if (
+                    this.gantt.options.popup_on === 'hover' &&
+                    !this.gantt.is_popup_locked_by_click()
+                )
+                // <<< SR: Hover click popup -----------------------------------
                     this.gantt.show_popup({
                         x: e.offsetX || e.layerX,
                         y: e.offsetY || e.layerY,
@@ -413,7 +424,12 @@ export default class Bar {
         });
         $.on(this.group, 'mouseleave', () => {
             clearTimeout(timeout);
-            if (this.gantt.options.popup_on === 'hover')
+            // >>> SR: Hover click popup ---------------------------------------
+            if (
+                this.gantt.options.popup_on === 'hover' &&
+                !this.gantt.is_popup_locked_by_click()
+            )
+            // <<< SR: Hover click popup ---------------------------------------
                 this.gantt.popup?.hide?.();
             
             // >>> SR: Bar Aggregation -----------------------------------------
