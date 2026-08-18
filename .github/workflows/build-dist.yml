@@ -1,6 +1,9 @@
 name: Build dist
 
 on:
+    push:
+        branches:
+            - master
     workflow_dispatch:
 
 permissions:
@@ -10,6 +13,7 @@ jobs:
     build-dist:
         name: Build and commit dist
         runs-on: ubuntu-latest
+        if: ${{ github.event_name == 'workflow_dispatch' || github.actor != 'github-actions[bot]' }}
 
         steps:
             - name: Checkout repository
