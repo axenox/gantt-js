@@ -5960,7 +5960,7 @@ var Gantt = (function() {
     );
   }
   const DEFAULT_VIEW_MODES = [
-    // >>> SR: Bar Aggregation TEST 2-------------------------------------------------
+    // >>> SR: Bar Aggregation TEST 3-------------------------------------------------
     // It currently doesn't work properly with PowerUI
     /*    {
             name: 'Hour',
