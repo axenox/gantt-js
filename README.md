@@ -146,7 +146,7 @@ Riel Gantt supports the standard Frappe Gantt task fields and adds row, priority
 | `row_keys` | `null` | Explicit row order and row list. Useful for rendering empty rows or stable row ordering.                                                                                                  |
 | `default_duration` | `2` | Duration in days used for tasks with missing start or end information.                                                                                                                    |
 | `start_of_week` | `'monday'` | Week alignment start. Use `'monday'`; `'sunday'` is present but not stable.                                                                                                               |
-| `include_today_in_padding` | `false` | Extends the padded date range so today is included. Experimental.                                                                                                                         |
+| `include_today_in_padding` | `false` | Extends the padded date range so today is included. When today is outside the task range, the end is extended far enough for the Today button target (`today - today_button_left_scroll_padding`) to reach the left viewport edge. Experimental.           |
 | `global_min_view_start` | `null` | Minimum start date included before view padding is applied.                                                                                                                               |
 | `global_min_view_end` | `null` | Minimum end date included before view padding is applied.                                                                                                                                 |
 | `stripe_rows` | `false` | Enables classic alternating row background colors.                                                                                                                                        |
@@ -382,7 +382,7 @@ new Gantt('#gantt', tasks, {
 });
 ```
 
-`include_today_in_padding: true` can extend the rendered date range so today is present even when it is outside the task range.
+`include_today_in_padding: true` can extend the rendered date range so today is present even when it is outside the task range. If all tasks are in the past, the range end is extended to cover the Today button scroll target plus the visible Gantt viewport width. With `today_button_left_scroll_padding`, this target is `today - today_button_left_scroll_padding`, so pressing **Today** can place today at the configured left offset instead of being blocked by the right timeline edge.
 
 ## API
 

@@ -152,6 +152,12 @@ today - today_button_left_scroll_padding
 
 This means the today line is not placed directly at the far-left edge, but is shifted to the right by the configured padding value. If there is not enough rendered area on the left, the scroll target is clamped to `gantt_start`.
 
+When `include_today_in_padding: true` is active, the right Gantt edge is also extended while today is inserted so the Today button scroll target can reach the left viewport edge. For tasks in the past, the end is extended to cover at least:
+
+```text
+today - today_button_left_scroll_padding + visible Gantt viewport width
+```
+
 For simple view mode configurations, `today_button_left_scroll_padding` is copied directly from the configuration.
 
 Affected files:
