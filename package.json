@@ -27,9 +27,9 @@
     ],
     "exports": {
         ".": {
+            "style": "./dist/riel-gantt.css",
             "require": "./dist/riel-gantt.umd.js",
-            "import": "./dist/riel-gantt.es.js",
-            "style": "./dist/riel-gantt.css"
+            "import": "./dist/riel-gantt.es.js"
         }
     },
     "keywords": [
