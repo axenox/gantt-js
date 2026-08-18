@@ -2158,6 +2158,8 @@ export default class Gantt {
     const today_end = date_utils.add(today_start, 1, 'day');
     // >>> SR: Today button left scroll padding -------------------------------
     const today_scroll_start = this.get_today_scroll_padding_start_date(today_start);
+    const today_scroll_view_end =
+        this.get_today_scroll_padding_view_end_date(today_start);
     // <<< SR: Today button left scroll padding -------------------------------
 
     // >>> SR: Today button left scroll padding -------------------------------
@@ -2166,8 +2168,13 @@ export default class Gantt {
     }
     // <<< SR: Today button left scroll padding -------------------------------
 
-    if (today_end > this.gantt_end) {
-      this.gantt_end = today_end;
+    // >>> SR: Today button viewport end padding ------------------------------
+    const required_today_end =
+        today_scroll_view_end > today_end ? today_scroll_view_end : today_end;
+    // <<< SR: Today button viewport end padding ------------------------------
+
+    if (required_today_end > this.gantt_end) {
+      this.gantt_end = required_today_end;
     }
   }
 
@@ -2186,6 +2193,56 @@ export default class Gantt {
     return date_utils.add(today_start, -padding.duration, padding.scale);
   }
   // <<< SR: Today button left scroll padding ---------------------------------
+
+  // >>> SR: Today button viewport end padding --------------------------------
+  /**
+   * Returns the minimum range end needed for the Today button scroll target to
+   * reach the left side of the viewport, while still leaving one visible
+   * viewport width to the right.
+   * @param today_start
+   * @returns {Date}
+   */
+  get_today_scroll_padding_view_end_date(today_start) {
+    const scroll_start = this.get_today_scroll_padding_start_date(today_start);
+    const viewport_units = this.get_visible_viewport_units();
+    if (!viewport_units) return today_start;
+
+    return this.add_units_for_viewport(scroll_start, viewport_units);
+  }
+
+  /**
+   * Converts the current Gantt viewport width from pixels into active view units.
+   * @returns {number}
+   */
+  get_visible_viewport_units() {
+    const viewport_width =
+        this.$container?.clientWidth ||
+        this.$container?.parentElement?.clientWidth ||
+        this.$svg?.parentElement?.clientWidth ||
+        0;
+
+    if (!viewport_width || !this.config.column_width || !this.config.step) {
+      return 0;
+    }
+
+    return (viewport_width / this.config.column_width) * this.config.step;
+  }
+
+  /**
+   * Adds viewport-derived units to a date. Month and year views use rounded-up
+   * whole units so the generated timeline always has enough right-side range.
+   * @param date
+   * @param units
+   * @returns {Date}
+   */
+  add_units_for_viewport(date, units) {
+    if (this.config.unit === 'month' || this.config.unit === 'year') {
+      return date_utils.add(date, Math.ceil(units), this.config.unit);
+    }
+
+    return this.add_precise_units(date, units, this.config.unit);
+  }
+  // <<< SR: Today button viewport end padding --------------------------------
 
   get_date_tick_for_date(date) {
     if (!this.dates?.length) return null;
