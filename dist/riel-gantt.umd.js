@@ -5881,7 +5881,7 @@
   }
   function createHeaderFormatter(def) {
     if (!def) return void 0;
-    const { date_format = "", date_format_at_border = "", interval = null } = def;
+    const { date_format = "", date_format_at_border, interval = null } = def;
     if (date_format === "~weekRange") return formatWeek;
     if (!interval) {
       return date_format || "";
