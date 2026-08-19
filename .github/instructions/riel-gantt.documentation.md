@@ -166,6 +166,19 @@ Affected files:
 - `src/gantt-js/src/index.js`
 <!-- <<< SR: Today button left scroll padding ------------------------------------------ -->
 
+<!-- >>> SR: Window fill padding to border ------------------------------------------ -->
+## Fill timeline to the window border
+
+With `window_fill_padding_to_border: true`, the already padded Gantt range is extended at the right edge when needed until the timeline covers at least the visible width of the Gantt window.
+
+When the option is `false`, the previous padding behavior is preserved. The extension runs after `include_today_in_padding`, so a Today extension is not overwritten and is only extended further if the visible window still needs more range.
+
+Affected files:
+
+- `src/gantt-js/src/defaults.js`
+- `src/gantt-js/src/index.js`
+<!-- <<< SR: Window fill padding to border ------------------------------------------ -->
+
 <!-- >>> SR: Respect configured initial view mode ------------------------------------------ -->
 ## Initial view with custom `view_modes`
 

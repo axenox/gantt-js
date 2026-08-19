@@ -417,6 +417,11 @@ const DEFAULT_OPTIONS = {
     // Set to true to extend the padded date range until today is included.
     // @experimental
     include_today_in_padding: false,
+    // >>> SR: Window fill padding to border ------------------------------------
+    // Set to true to extend the padded date range until it fills the visible window.
+    // @experimental
+    window_fill_padding_to_border: false,
+    // <<< SR: Window fill padding to border ------------------------------------
     // >>> SR: Global minimum view interval ------------------------------------
     // Minimum date that should be included before view padding is applied.
     global_min_view_start: null,
