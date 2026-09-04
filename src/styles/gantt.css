@@ -415,6 +415,17 @@
   border-bottom: 1px solid #d6dce2;
 }
 
+/* >>> SR: Aggregation popup striped rows -------------------------------- */
+.exf-gantt .gantt-container .popup-wrapper .agg-table .agg-list-row-striped td {
+  background: #f7f7f7;
+}
+
+.dark.exf-gantt .gantt-container .popup-wrapper .agg-table .agg-list-row-striped td,
+.dark .exf-gantt .gantt-container .popup-wrapper .agg-table .agg-list-row-striped td {
+  background: #303030;
+}
+/* <<< SR: Aggregation popup striped rows -------------------------------- */
+
 .exf-gantt .gantt-container .popup-wrapper .agg-table .agg-section-start td {
   border-top: 3px solid #8f9aa5;
   padding-top: 5px;
@@ -445,9 +456,19 @@
 
 .exf-gantt .gantt-container .popup-wrapper .agg-table .agg-title {
   min-width: 120px;
+  width: 256px;
   max-width: 256px;
   overflow-wrap: anywhere;
+  white-space: normal;
 }
+
+/* >>> SR: Aggregation popup fixed row height -------------------------- */
+.exf-gantt .gantt-container .popup-wrapper .agg-popup-list-content .agg-table .agg-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* <<< SR: Aggregation popup fixed row height -------------------------- */
 
 .exf-gantt .gantt-container .popup-wrapper .agg-table .agg-duration {
   width: 30px;
