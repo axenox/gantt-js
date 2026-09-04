@@ -121,6 +121,9 @@ export default class Popup {
 
           // >>> SR: Aggregation popup Gantt ----------------------------------
           if (popupGanttTarget) {
+            // >>> SR: Popup Gantt initial window fill -------------------------
+            this.prepare_popup_for_nested_gantt_measurement();
+            // <<< SR: Popup Gantt initial window fill -------------------------
             this.render_aggregation_popup_gantt(
                 popupGanttTarget,
                 aggregationTasks,
@@ -336,8 +339,8 @@ export default class Popup {
         container_height: 'auto',
         infinite_padding: false,
         scroll_to: 'start',
-        view_mode_select: this.gantt.options.view_mode_select,
-        today_button: this.gantt.options.today_button,
+        view_mode_select: true,
+        today_button: true,
         readonly: true,
         readonly_dates: true,
         readonly_progress: true,
@@ -348,7 +351,19 @@ export default class Popup {
         //popup_on: 'click', //TODO SR: currently dont work.
         popup_aggregate_expand_tasks: false,
         popup_aggregate_include_upper_row_tasks: false,
+        global_min_view_start: null,
+        global_min_view_end: null,
+        window_fill_padding_to_border: true
       };
+    }
+
+    /**
+     * Makes the popup participate in layout before the nested Gantt is created.
+     * The nested Gantt needs a measurable container for window_fill_padding_to_border.
+     */
+    prepare_popup_for_nested_gantt_measurement() {
+      this.parent.style.visibility = 'hidden';
+      this.parent.classList.remove('hide');
     }
 
     /**
