@@ -6147,6 +6147,11 @@ const DEFAULT_OPTIONS = {
   // Set to true to extend the padded date range until today is included.
   // @experimental
   include_today_in_padding: false,
+  // >>> SR: Window fill padding to border ------------------------------------
+  // Set to true to extend the padded date range until it fills the visible window.
+  // @experimental
+  window_fill_padding_to_border: false,
+  // <<< SR: Window fill padding to border ------------------------------------
   // >>> SR: Global minimum view interval ------------------------------------
   // Minimum date that should be included before view padding is applied.
   global_min_view_start: null,
@@ -6519,6 +6524,7 @@ class Gantt {
         padding_end.scale
       );
       this.extend_gantt_range_to_include_today();
+      this.extend_gantt_range_to_fill_window();
       if (this.should_align_to_week_start()) {
         this.gantt_start = this.align_to_week_start(this.gantt_start);
       }
@@ -7813,6 +7819,32 @@ class Gantt {
     return this.add_precise_units(date, units, this.config.unit);
   }
   // <<< SR: Today button viewport end padding --------------------------------
+  // >>> SR: Window fill padding to border -------------------------------------
+  /**
+   * Returns true when the padded Gantt date range should be extended until the
+   * rendered timeline fills the currently visible window.
+   * @returns {boolean}
+   */
+  should_fill_window_padding_to_border() {
+    return Boolean(this.options.window_fill_padding_to_border);
+  }
+  /**
+   * Extends the Gantt end date so the generated timeline covers at least the
+   * current viewport width from the calculated Gantt start.
+   */
+  extend_gantt_range_to_fill_window() {
+    if (!this.should_fill_window_padding_to_border()) return;
+    const viewport_units = this.get_visible_viewport_units();
+    if (!viewport_units) return;
+    const window_end = this.add_units_for_viewport(
+      this.gantt_start,
+      viewport_units
+    );
+    if (window_end > this.gantt_end) {
+      this.gantt_end = window_end;
+    }
+  }
+  // <<< SR: Window fill padding to border -------------------------------------
   get_date_tick_for_date(date) {
     if (!this.dates?.length) return null;
     for (let i = this.dates.length - 1; i >= 0; i--) {
