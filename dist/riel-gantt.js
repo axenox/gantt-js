@@ -5384,11 +5384,16 @@ var Gantt = (function() {
           append(this.build_aggregation_part(members));
         }
         if (popupGanttTarget) {
+          this.prepare_popup_for_nested_gantt_measurement();
           this.render_aggregation_popup_gantt(
             popupGanttTarget,
             aggregationTasks
           );
           this.align_aggregation_popup_rows(popupGanttListContent);
+          this.bind_popup_gantt_alignment_refresh(
+            popupGanttTarget,
+            popupGanttListContent
+          );
         }
       }
       this.position_inside_visible_container(x, y);
@@ -5398,6 +5403,7 @@ var Gantt = (function() {
     position_inside_visible_container(x, y) {
       const container = this.gantt.$container;
       const margin = 8;
+      const pointerGap = 10;
       this.parent.style.visibility = "hidden";
       this.parent.style.left = "0px";
       this.parent.style.top = "0px";
@@ -5409,10 +5415,28 @@ var Gantt = (function() {
       const maxLeft = container.scrollLeft + container.clientWidth - popupWidth - margin;
       const minTop = container.scrollTop + margin;
       const maxTop = container.scrollTop + container.clientHeight - popupHeight - margin;
-      const desiredLeft = x + 10;
-      const desiredTop = y - 10;
-      this.parent.style.left = Math.max(minLeft, Math.min(desiredLeft, Math.max(minLeft, maxLeft))) + "px";
-      this.parent.style.top = Math.max(minTop, Math.min(desiredTop, Math.max(minTop, maxTop))) + "px";
+      const maxSafeLeft = Math.max(minLeft, maxLeft);
+      const maxSafeTop = Math.max(minTop, maxTop);
+      const rightLeft = x + pointerGap;
+      const leftLeft = x - popupWidth - pointerGap;
+      const canFitRight = rightLeft <= maxLeft;
+      const canFitLeft = leftLeft >= minLeft;
+      let desiredLeft;
+      let desiredTop;
+      if (canFitRight) {
+        desiredLeft = rightLeft;
+        desiredTop = y - pointerGap;
+      } else if (canFitLeft) {
+        desiredLeft = leftLeft;
+        desiredTop = y - pointerGap;
+      } else {
+        desiredLeft = x - popupWidth / 2;
+        const belowTop = y + pointerGap;
+        const aboveTop = y - popupHeight - pointerGap;
+        desiredTop = belowTop <= maxTop ? belowTop : aboveTop;
+      }
+      this.parent.style.left = Math.max(minLeft, Math.min(desiredLeft, maxSafeLeft)) + "px";
+      this.parent.style.top = Math.max(minTop, Math.min(desiredTop, maxSafeTop)) + "px";
       this.parent.style.visibility = "";
     }
     // >>> SR: Popup outside container fix ---------------------------------------------
@@ -5557,19 +5581,30 @@ var Gantt = (function() {
         container_height: "auto",
         infinite_padding: false,
         scroll_to: "start",
-        view_mode_select: this.gantt.options.view_mode_select,
-        today_button: this.gantt.options.today_button,
+        view_mode_select: true,
+        today_button: true,
         readonly: true,
         readonly_dates: true,
         readonly_progress: true,
         move_dependencies: false,
         popup: false,
-        stripe_rows: true,
+        stripe_rows: this.gantt.options.stripe_rows,
         holidays: null,
         //popup_on: 'click', //TODO SR: currently dont work.
         popup_aggregate_expand_tasks: false,
-        popup_aggregate_include_upper_row_tasks: false
+        popup_aggregate_include_upper_row_tasks: false,
+        global_min_view_start: null,
+        global_min_view_end: null,
+        window_fill_padding_to_border: true
       };
+    }
+    /**
+     * Makes the popup participate in layout before the nested Gantt is created.
+     * The nested Gantt needs a measurable container for window_fill_padding_to_border.
+     */
+    prepare_popup_for_nested_gantt_measurement() {
+      this.parent.style.visibility = "hidden";
+      this.parent.classList.remove("hide");
     }
     /**
      * Aligns the first left list/table row with the first task row of the
@@ -5578,20 +5613,42 @@ var Gantt = (function() {
      */
     align_aggregation_popup_rows(listContent) {
       if (!listContent || !this.popup_gantt) return;
-      const listHeader = listContent.parentElement?.querySelector(
-        ".agg-popup-list-header"
-      );
-      const popupHeaderHeight = this.popup_gantt.config?.header_height || 0;
-      const leftHeaderHeight = listHeader?.offsetHeight || 0;
       const rowHeight = this.popup_gantt.options?.row_height || 0;
-      listContent.style.marginTop = `${Math.max(
-        0,
-        popupHeaderHeight - leftHeaderHeight - 15
-      )}px`;
-      if (!rowHeight) return;
-      listContent.querySelectorAll(".agg-table .agg-list-row, .agg-list li").forEach((row) => {
-        row.style.height = `${rowHeight}px`;
-        row.style.minHeight = `${rowHeight}px`;
+      const rows = listContent.querySelectorAll(
+        ".agg-table .agg-list-row, .agg-list li"
+      );
+      listContent.style.marginTop = "0px";
+      if (rowHeight) {
+        rows.forEach((row) => {
+          row.style.height = `${rowHeight}px`;
+          row.style.minHeight = `${rowHeight}px`;
+        });
+      }
+      const firstListRow = rows[0];
+      const firstGanttRow = this.popup_gantt.$svg?.querySelector(
+        ".grid .grid-row"
+      );
+      if (!firstListRow || !firstGanttRow) return;
+      const listTop = firstListRow.getBoundingClientRect().top;
+      const ganttTop = firstGanttRow.getBoundingClientRect().top;
+      const offset2 = ganttTop - listTop;
+      const manualOffset = 3;
+      listContent.style.marginTop = `${offset2 + manualOffset}px`;
+    }
+    /**
+     * Re-aligns the left popup rows after the nested popup Gantt changes view.
+     * @param popupGanttTarget
+     * @param listContent
+     */
+    bind_popup_gantt_alignment_refresh(popupGanttTarget, listContent) {
+      const select = popupGanttTarget?.querySelector(".viewmode-select");
+      if (!select || select._aggPopupAlignmentBound) return;
+      select._aggPopupAlignmentBound = true;
+      select.addEventListener("change", () => {
+        requestAnimationFrame(() => {
+          this.align_aggregation_popup_rows(listContent);
+          this.bind_popup_gantt_alignment_refresh(popupGanttTarget, listContent);
+        });
       });
     }
     /**
@@ -5630,6 +5687,9 @@ var Gantt = (function() {
       members.forEach((m, index) => {
         const tr = document.createElement("tr");
         tr.className = "agg-list-row";
+        if (this.gantt.options.stripe_rows && index % 2 === 1) {
+          tr.classList.add("agg-list-row-striped");
+        }
         if (sectionStartIndex != null && index === sectionStartIndex) {
           tr.classList.add("agg-section-start");
         }
@@ -5684,6 +5744,7 @@ var Gantt = (function() {
         const titleCell = document.createElement("td");
         titleCell.className = "agg-title";
         titleCell.textContent = labelText;
+        titleCell.title = labelText;
         tr.appendChild(titleCell);
         const durationCell = document.createElement("td");
         durationCell.className = "agg-duration";

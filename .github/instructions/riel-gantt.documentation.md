@@ -198,6 +198,24 @@ Affected files:
 - `src/gantt-js/src/index.js`
 <!-- <<< SR: Respect configured initial view mode ------------------------------------------ -->
 
+<!-- >>> SR: Popup pointer fallback placement ------------------------------------------ -->
+## Popup pointer fallback placement
+
+Task popups are positioned relative to the pointer and kept inside the visible Gantt container.
+
+Behavior:
+
+- The popup is shown to the right of the pointer when there is enough room.
+- If the right side has too little room, the popup is shown to the left of the pointer.
+- If neither side has enough room, the popup is centered under the pointer.
+- If there is too little room below the pointer, the popup is centered above the pointer.
+- The final position is still clamped to the visible Gantt container.
+
+Affected files:
+
+- `src/gantt-js/src/popup.js`
+<!-- <<< SR: Popup pointer fallback placement ------------------------------------------ -->
+
 ## Tabular aggregation popup list
 
 The popup for aggregation blocks can be displayed either as a classic list or as a compact table structure using `popup_aggregate_style`.
@@ -249,6 +267,9 @@ Behavior:
 - The width of the popup Gantt is controlled in pixels via `popup_aggregate_gantt_width`.
 - All tasks visible in the left popup are copied for the popup Gantt.
 - Each copied task receives its own `lineIndex`, so each popup row on the right shows exactly one task bar.
+- The left list/table rows are aligned to the rendered popup Gantt rows and are re-aligned after popup Gantt view changes.
+- Long task names in the table are truncated with an ellipsis only in the expanded popup Gantt layout so text wrapping cannot increase row height; when `popup_aggregate_expand_tasks` is `false`, table task names can wrap normally.
+- When `stripe_rows` is enabled, the left aggregation table uses the same alternating row colors as the Gantt rows.
 - Dragging, progress changes, popups, and recursive popup Gantts are disabled inside the popup Gantt.
 
 Affected files:

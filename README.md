@@ -323,6 +323,8 @@ Context properties:
 | `set_title`, `set_subtitle`, `set_details` | Set popup section HTML. |
 | `add_action` | Adds an action button. Signature: `(html, callback)`. |
 
+The popup is positioned next to the pointer when possible. It prefers the right side, then the left side. If neither side has enough room, it is placed below the pointer and falls back above the pointer when the lower side would leave too little visible space.
+
 ### Aggregation popup options
 
 ```js
@@ -334,7 +336,7 @@ new Gantt('#gantt', tasks, {
 });
 ```
 
-`popup_aggregate_expand_tasks` creates a nested read-only Gantt inside the popup. The nested chart uses the same view mode as the main chart, disables recursive aggregation popups and renders one task per popup row.
+`popup_aggregate_expand_tasks` creates a nested read-only Gantt inside the popup. The nested chart uses the same view mode as the main chart, disables recursive aggregation popups and renders one task per popup row. The left popup rows are aligned to the rendered rows of the nested Gantt and are re-aligned after popup Gantt view changes. Long task names are truncated with an ellipsis only in the expanded popup Gantt layout to keep row heights aligned; when `popup_aggregate_expand_tasks` is `false`, table task names can wrap normally. When `stripe_rows` is enabled, the left aggregation table uses the same alternating row colors as the Gantt rows.
 
 ## Date Formatting
 
