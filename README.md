@@ -96,7 +96,7 @@ Riel Gantt supports the standard Frappe Gantt task fields and adds row, priority
 | `dependencies` | Comma-separated dependency ids or an array of ids.                                                                                                                    |
 | `lineIndex` | Groups tasks into the same logical row. Tasks without `lineIndex` fall back to their task index.                                                                      |
 | `priority` | Numeric priority used by aggregation logic. Higher values are kept visible first when tasks overlap.                                                                  |
-| `columns` | Object with additional values rendered between the task name and duration in table-style aggregation popups.                                                         |
+| `columns` | Object with additional values rendered between the dates and duration in normal popups and between the task name and duration in table-style aggregation popups.                |
 | `draggable` | Set to `false` to prevent dragging or resizing this task.                                                                                                             |
 | `readonly` | Set to `true` for a task that should not be edited. (not stable)                                                                                                      |
 | `custom_class` | Additional CSS class added to the task bar group.                                                                                                                     |
@@ -128,6 +128,7 @@ Riel Gantt supports the standard Frappe Gantt task fields and adds row, priority
 | `move_dependencies` | `true` | Moves dependent tasks automatically when a task is moved.                                                                                                                                                                                        |
 | `padding` | `18` | Legacy padding around bars. With aggregation layouts, vertical spacing is mainly controlled by row and lane options.                                                                                                                             |
 | `popup` | Default popup renderer | Function used to render task and aggregation popups. See [Popup Configuration](#popup-configuration).                                                                                                                                            |
+| `popup_include_header` | `false` | Shows the `Start | - | End | [task columns] | Duration` header in the default task popup.                                                                                                                                        |
 | `popup_on` | `'click'` | Popup trigger: `'click'` or `'hover'`. In `hover` mode, hovering shows the popup and leaving the bar hides it; clicking a bar pins the popup until the user clicks outside a bar or clicks another bar.                                          |
 | `readonly_progress` | `false` | Disables progress editing.                                                                                                                                                                                                                       |
 | `readonly_dates` | `false` | Disables date editing.                                                                                                                                                                                                                           |
@@ -323,9 +324,22 @@ Context properties:
 | `chart` | The Gantt instance. |
 | `get_title`, `get_subtitle`, `get_details` | Read popup section nodes. |
 | `set_title`, `set_subtitle`, `set_details` | Set popup section HTML. |
+| `render_default_popup` | Renders the built-in task popup. A custom renderer may call this explicitly before adding its own content. |
 | `add_action` | Adds an action button. Signature: `(html, callback)`. |
 
 The popup is positioned next to the pointer when possible. It prefers the right side, then the left side. If neither side has enough room, it is placed below the pointer and falls back above the pointer when the lower side would leave too little visible space.
+
+The default popup renders the task name as its title and a single table row below it:
+
+```text
+Start | - | End | [task columns] | Duration
+```
+
+Task `columns` are inserted in their object order. Supplying a custom `popup` function replaces this default renderer and remains authoritative.
+
+Set `popup_include_header: true` to show the matching column header above this row. This option is independent of `popup_aggregate_include_header`.
+
+If the task title is wider than the detail row, the normal popup table expands to the title width. Start, separator, end and custom columns keep their intrinsic content widths and remain grouped on the left. A dedicated spacer absorbs the remaining space before the right-aligned duration. Aggregation tables are unaffected.
 
 ### Aggregation popup options
 

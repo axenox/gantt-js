@@ -48,6 +48,9 @@ export default class Popup {
             set_subtitle: (subtitle) => (this.subtitle.innerHTML = subtitle),
             get_details: () => this.details,
             set_details: (details) => (this.details.innerHTML = details),
+            // >>> SR: Default task popup table --------------------------------
+            render_default_popup: () => this.render_default_popup(task),
+            // <<< SR: Default task popup table --------------------------------
             add_action: (html, func) => {
                 let action = this.gantt.create_el({
                     classes: 'action-btn',
@@ -145,6 +148,31 @@ export default class Popup {
         // <<< SR: Popup outside container fix ---------------------------------
         this.parent.classList.remove('hide');
     }
+
+    // >>> SR: Default task popup table ---------------------------------------
+    /**
+     * Renders the standard task popup with its dates, custom columns and
+     * duration in the same tabular format used by aggregation popups.
+     *
+     * @param task task displayed by the popup
+     */
+    render_default_popup(task) {
+      this.title.textContent = task.name ?? '';
+      this.subtitle.textContent = task.description ?? '';
+      this.details.innerHTML = '';
+      this.details.appendChild(this.build_aggregation_table(
+          [task],
+          null,
+          {
+            className: 'agg-table task-popup-table',
+            includeColor: false,
+            includeTitle: false,
+            includeHeader: this.gantt.options.popup_include_header === true,
+            includeDurationSpacer: true,
+          },
+      ));
+    }
+    // <<< SR: Default task popup table ---------------------------------------
 
     // <<< SR: Popup outside container fix -------------------------------------
     position_inside_visible_container(x, y) {
@@ -429,7 +457,7 @@ export default class Popup {
       const ganttTop = firstGanttRow.getBoundingClientRect().top;
       // >>> SR: Aggregation table header --------------------------------------
       const tableHeader = listContent.querySelector('.agg-table-header');
-      const manualOffset = 3;
+      const manualOffset = 0; //3
 
       if (tableHeader) {
         tableHeader.style.height = '';
@@ -522,22 +550,35 @@ export default class Popup {
    * Builds a table header for the standard and task-specific popup columns.
    *
    * @param {string[]} columnKeys additional task column names
+   * @param {object} options controls optional standard table columns
    * @returns {HTMLTableSectionElement}
    */
-    build_aggregation_table_header(columnKeys) {
+    build_aggregation_table_header(columnKeys, options = {}) {
+      const {
+        includeColor = true,
+        includeTitle = true,
+        includeDurationSpacer = false,
+      } = options;
       const thead = document.createElement('thead');
       const row = document.createElement('tr');
       row.className = 'agg-table-header';
       const headers = [
-        { text: '', className: 'agg-color-cell' },
+        ...(includeColor
+          ? [{ text: '', className: 'agg-color-cell' }]
+          : []),
         { text: 'Start', className: 'agg-start-date' },
         { text: '', className: 'agg-interval-separator' },
         { text: 'End', className: 'agg-end-date' },
-        { text: 'Title', className: 'agg-title' },
+        ...(includeTitle
+          ? [{ text: 'Title', className: 'agg-title' }]
+          : []),
         ...columnKeys.map((key) => ({
           text: key,
           className: 'agg-extra-column',
         })),
+        ...(includeDurationSpacer
+          ? [{ text: '', className: 'task-popup-duration-spacer' }]
+          : []),
         { text: 'Duration', className: 'agg-duration' },
       ];
 
@@ -559,20 +600,35 @@ export default class Popup {
    * 
    * @param members
    * @param sectionStartIndex index where the member section starts after upper-row tasks
+   * @param {object} tableOptions controls optional columns and table classes
    * @returns {HTMLTableElement}
    */
-    build_aggregation_table(members, sectionStartIndex = null) {
-      
-      const table = document.createElement('table');
-      // >>> SR: Aggregation popup list/table styles --------------------------
-      table.className = 'agg-table';
-      // <<< SR: Aggregation popup list/table styles --------------------------
+    build_aggregation_table(
+      members,
+      sectionStartIndex = null,
+      tableOptions = {},
+    ) {
+    const {
+      className = 'agg-table',
+      includeColor = true,
+      includeTitle = true,
+      includeDurationSpacer = false,
+      includeHeader =
+        this.gantt.options.popup_aggregate_include_header === true,
+    } = tableOptions;
+    const table = document.createElement('table');
+    // >>> SR: Aggregation popup list/table styles --------------------------
+    table.className = className;
+    // <<< SR: Aggregation popup list/table styles --------------------------
       // >>> SR: Task columns in aggregation table -----------------------------
       const columnKeys = this.get_aggregation_column_keys(members);
       // <<< SR: Task columns in aggregation table -----------------------------
       // >>> SR: Aggregation table header --------------------------------------
-      if (this.gantt.options.popup_aggregate_include_header === true) {
-        table.appendChild(this.build_aggregation_table_header(columnKeys));
+      if (includeHeader) {
+        table.appendChild(this.build_aggregation_table_header(
+            columnKeys,
+            { includeColor, includeTitle, includeDurationSpacer },
+        ));
       }
       // <<< SR: Aggregation table header --------------------------------------
       const tbody = document.createElement('tbody');
@@ -603,16 +659,18 @@ export default class Popup {
         }
         // <<< SR: Tabular aggregation popup list ------------------------------
   
-        // Color-Swatch at the left
-        const colorCell = document.createElement('td');
-        colorCell.className = 'agg-color-cell';
-        const swatch = document.createElement('span');
-        swatch.className = 'agg-color-swatch';
-        if (m.color) {
-          swatch.style.backgroundColor = String(m.color);
+        if (includeColor) {
+          // Color-Swatch at the left
+          const colorCell = document.createElement('td');
+          colorCell.className = 'agg-color-cell';
+          const swatch = document.createElement('span');
+          swatch.className = 'agg-color-swatch';
+          if (m.color) {
+            swatch.style.backgroundColor = String(m.color);
+          }
+          colorCell.appendChild(swatch);
+          tr.appendChild(colorCell);
         }
-        colorCell.appendChild(swatch);
-        tr.appendChild(colorCell);
         
         // Getting the original task to know real start/end
         const originalTask = this.gantt.get_task ? this.gantt.get_task(m.id) : null;
@@ -664,13 +722,15 @@ export default class Popup {
         endCell.textContent = endText;
         tr.appendChild(endCell);
 
-        const titleCell = document.createElement('td');
-        titleCell.className = 'agg-title';
-        titleCell.textContent = labelText;
-        // >>> SR: Aggregation popup fixed row height --------------------------
-        titleCell.title = labelText;
-        // <<< SR: Aggregation popup fixed row height --------------------------
-        tr.appendChild(titleCell);
+        if (includeTitle) {
+          const titleCell = document.createElement('td');
+          titleCell.className = 'agg-title';
+          titleCell.textContent = labelText;
+          // >>> SR: Aggregation popup fixed row height ------------------------
+          titleCell.title = labelText;
+          // <<< SR: Aggregation popup fixed row height ------------------------
+          tr.appendChild(titleCell);
+        }
 
         // >>> SR: Task columns in aggregation table ---------------------------
         columnKeys.forEach((columnKey) => {
@@ -682,6 +742,12 @@ export default class Popup {
           tr.appendChild(extraCell);
         });
         // <<< SR: Task columns in aggregation table ---------------------------
+
+        if (includeDurationSpacer) {
+          const durationSpacerCell = document.createElement('td');
+          durationSpacerCell.className = 'task-popup-duration-spacer';
+          tr.appendChild(durationSpacerCell);
+        }
 
         const durationCell = document.createElement('td');
         durationCell.className = 'agg-duration';
@@ -778,7 +844,9 @@ export default class Popup {
       this.destroy_popup_gantt();
       this.restore_popup_content_from_aggregation_layout();
       this.parent
-          .querySelectorAll('.agg-popup-expanded, .agg-list, .agg-table')
+          .querySelectorAll(
+              '.agg-popup-expanded, .agg-list, .agg-table:not(.task-popup-table)',
+          )
           .forEach((list) => list.remove());
       // <<< SR: Aggregation popup Gantt --------------------------------------
       // <<< SR: upperRowTasks -------------------------------------------------
