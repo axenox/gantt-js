@@ -426,11 +426,27 @@ export default class Popup {
 
       if (!firstListRow || !firstGanttRow) return;
 
-      const listTop = firstListRow.getBoundingClientRect().top;
       const ganttTop = firstGanttRow.getBoundingClientRect().top;
+      // >>> SR: Aggregation table header --------------------------------------
+      const tableHeader = listContent.querySelector('.agg-table-header');
+      const manualOffset = 3;
+
+      if (tableHeader) {
+        tableHeader.style.height = '';
+        tableHeader.style.minHeight = '';
+        const listContentTop = listContent.getBoundingClientRect().top;
+        const availableHeaderHeight = Math.max(
+            0,
+            ganttTop + manualOffset - listContentTop,
+        );
+        tableHeader.style.height = `${availableHeaderHeight}px`;
+        tableHeader.style.minHeight = `${availableHeaderHeight}px`;
+      }
+      // <<< SR: Aggregation table header --------------------------------------
+
+      const listTop = firstListRow.getBoundingClientRect().top;
       const offset = ganttTop - listTop;
 
-      const manualOffset = 3;
       listContent.style.marginTop = `${offset + manualOffset}px`
       // <<< SR: Aggregation popup row alignment -------------------------------
     }
@@ -477,6 +493,67 @@ export default class Popup {
     // <<< SR: Aggregation popup Gantt ----------------------------------------
     
   // >>> SR: Bar Aggregation ---------------------------------------------------
+  // >>> SR: Task columns in aggregation table --------------------------------
+  /**
+   * Collects additional table column names in their first occurrence order.
+   *
+   * @param members aggregation members displayed in the table
+   * @returns {string[]}
+   */
+    get_aggregation_column_keys(members) {
+      const columnKeys = new Set();
+
+      members.forEach((member) => {
+        if (
+          member.columns &&
+          typeof member.columns === 'object' &&
+          !Array.isArray(member.columns)
+        ) {
+          Object.keys(member.columns).forEach((key) => columnKeys.add(key));
+        }
+      });
+
+      return Array.from(columnKeys);
+    }
+  // <<< SR: Task columns in aggregation table --------------------------------
+
+  // >>> SR: Aggregation table header -----------------------------------------
+  /**
+   * Builds a table header for the standard and task-specific popup columns.
+   *
+   * @param {string[]} columnKeys additional task column names
+   * @returns {HTMLTableSectionElement}
+   */
+    build_aggregation_table_header(columnKeys) {
+      const thead = document.createElement('thead');
+      const row = document.createElement('tr');
+      row.className = 'agg-table-header';
+      const headers = [
+        { text: '', className: 'agg-color-cell' },
+        { text: 'Start', className: 'agg-start-date' },
+        { text: '', className: 'agg-interval-separator' },
+        { text: 'End', className: 'agg-end-date' },
+        { text: 'Title', className: 'agg-title' },
+        ...columnKeys.map((key) => ({
+          text: key,
+          className: 'agg-extra-column',
+        })),
+        { text: 'Duration', className: 'agg-duration' },
+      ];
+
+      headers.forEach(({ text, className }) => {
+        const cell = document.createElement('th');
+        cell.className = className;
+        cell.scope = 'col';
+        cell.textContent = text;
+        row.appendChild(cell);
+      });
+
+      thead.appendChild(row);
+      return thead;
+    }
+  // <<< SR: Aggregation table header -----------------------------------------
+
   /**
    * Builds the aggregation table for given aggregation members.
    * 
@@ -490,6 +567,14 @@ export default class Popup {
       // >>> SR: Aggregation popup list/table styles --------------------------
       table.className = 'agg-table';
       // <<< SR: Aggregation popup list/table styles --------------------------
+      // >>> SR: Task columns in aggregation table -----------------------------
+      const columnKeys = this.get_aggregation_column_keys(members);
+      // <<< SR: Task columns in aggregation table -----------------------------
+      // >>> SR: Aggregation table header --------------------------------------
+      if (this.gantt.options.popup_aggregate_include_header === true) {
+        table.appendChild(this.build_aggregation_table_header(columnKeys));
+      }
+      // <<< SR: Aggregation table header --------------------------------------
       const tbody = document.createElement('tbody');
       table.appendChild(tbody);
       
@@ -586,6 +671,17 @@ export default class Popup {
         titleCell.title = labelText;
         // <<< SR: Aggregation popup fixed row height --------------------------
         tr.appendChild(titleCell);
+
+        // >>> SR: Task columns in aggregation table ---------------------------
+        columnKeys.forEach((columnKey) => {
+          const extraCell = document.createElement('td');
+          const value = m.columns?.[columnKey];
+          extraCell.className = 'agg-extra-column';
+          extraCell.dataset.column = columnKey;
+          extraCell.textContent = value == null ? '' : String(value);
+          tr.appendChild(extraCell);
+        });
+        // <<< SR: Task columns in aggregation table ---------------------------
 
         const durationCell = document.createElement('td');
         durationCell.className = 'agg-duration';

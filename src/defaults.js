@@ -434,6 +434,10 @@ const DEFAULT_OPTIONS = {
     // 'table' is @experimental
     // Values: 'list' | 'table'
     popup_aggregate_style: 'list',
+    // >>> SR: Aggregation table header ---------------------------------------
+    // Shows descriptive column headers in table-style aggregation popups.
+    popup_aggregate_include_header: false,
+    // <<< SR: Aggregation table header ---------------------------------------
     // Includes tasks that are in the top lane of the row in the aggregate popup. 
     // Set false to only include tasks inside the aggregation block.
     // @experimental

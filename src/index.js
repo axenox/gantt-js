@@ -2663,6 +2663,9 @@ export default class Gantt {
                 // >>> SR: Priority aggregation top lane ----------------------
                 priority: m.priority,
                 // <<< SR: Priority aggregation top lane ----------------------
+                // >>> SR: Task columns in aggregation table -------------------
+                columns: m.columns,
+                // <<< SR: Task columns in aggregation table -------------------
                 actual_duration: m.actual_duration, //TODO SR: It is undefined here because it is only set under "bar.compute_duration()".
                 ignored_duration: m.ignored_duration //TODO SR: It is undefined here because it is only set under "bar.compute_duration()".
               })),

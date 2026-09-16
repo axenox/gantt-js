@@ -96,6 +96,7 @@ Riel Gantt supports the standard Frappe Gantt task fields and adds row, priority
 | `dependencies` | Comma-separated dependency ids or an array of ids.                                                                                                                    |
 | `lineIndex` | Groups tasks into the same logical row. Tasks without `lineIndex` fall back to their task index.                                                                      |
 | `priority` | Numeric priority used by aggregation logic. Higher values are kept visible first when tasks overlap.                                                                  |
+| `columns` | Object with additional values rendered between the task name and duration in table-style aggregation popups.                                                         |
 | `draggable` | Set to `false` to prevent dragging or resizing this task.                                                                                                             |
 | `readonly` | Set to `true` for a task that should not be edited. (not stable)                                                                                                      |
 | `custom_class` | Additional CSS class added to the task bar group.                                                                                                                     |
@@ -152,6 +153,7 @@ Riel Gantt supports the standard Frappe Gantt task fields and adds row, priority
 | `global_min_view_end` | `null` | Minimum end date included before view padding is applied.                                                                                                                                                                                        |
 | `stripe_rows` | `false` | Enables classic alternating row background colors.                                                                                                                                                                                               |
 | `popup_aggregate_style` | `'list'` | Aggregation popup member layout: `'list'` or `'table'`. The table layout is experimental.                                                                                                                                                        |
+| `popup_aggregate_include_header` | `false` | Shows column headers in table-style aggregation popups. Additional task `columns` use their object keys as headers.                                                                                                                             |
 | `popup_aggregate_include_upper_row_tasks` | `true` | Includes overlapping visible upper-lane tasks in aggregation popups. Set to `false` to show only aggregate members.                                                                                                                              |
 | `date_formatter` | `null` | Optional global formatter function. Signature: `(date, format_string, lang)`.                                                                                                                                                                    |
 | `date_format_default` | `'YYYY-MM-DD HH:mm:ss.SSS'` | Fallback format passed to `date_formatter` when no explicit format is supplied.                                                                                                                                                                  |
@@ -330,6 +332,7 @@ The popup is positioned next to the pointer when possible. It prefers the right 
 ```js
 new Gantt('#gantt', tasks, {
     popup_aggregate_style: 'table',
+    popup_aggregate_include_header: true,
     popup_aggregate_include_upper_row_tasks: true,
     popup_aggregate_expand_tasks: true,
     popup_aggregate_gantt_width: 420,
@@ -337,6 +340,20 @@ new Gantt('#gantt', tasks, {
 ```
 
 `popup_aggregate_expand_tasks` creates a nested read-only Gantt inside the popup. The nested chart uses the same view mode as the main chart, disables recursive aggregation popups and renders one task per popup row. The left popup rows are aligned to the rendered rows of the nested Gantt and are re-aligned after popup Gantt view changes. Long task names are truncated with an ellipsis only in the expanded popup Gantt layout to keep row heights aligned; when `popup_aggregate_expand_tasks` is `false`, table task names can wrap normally. When `stripe_rows` is enabled, the left aggregation table uses the same alternating row colors as the Gantt rows.
+
+For `popup_aggregate_style: 'table'`, tasks can provide a `columns` object:
+
+```js
+{
+    id: '265',
+    name: 'Planning procedure',
+    columns: { status: 'done', type: 'Environment' },
+}
+```
+
+Each object key defines an additional shared table column, and its value is shown between the task name and duration. Column order follows the first occurrence of each key across the displayed tasks. Missing values produce an empty cell so all rows stay aligned.
+
+Set `popup_aggregate_include_header: true` to add the header `Start | - | End | Title | ... | Duration`. The `...` positions use the keys from task `columns`. With `popup_aggregate_expand_tasks: true`, the table header occupies the same vertical header area as the nested Gantt so task rows remain horizontally aligned.
 
 ## Date Formatting
 

@@ -370,7 +370,7 @@
   max-height: 160px;
   overflow: auto;
   border-top: 1px solid #e5e5e5;
-  padding: 5px;
+  padding: 0px;
 }
 
 .exf-gantt .gantt-container .popup-wrapper .agg-list li {
@@ -409,6 +409,26 @@
   padding: 5px 5px 5px 0;
   vertical-align: middle;
 }
+
+/* >>> SR: Aggregation table header ------------------------------------- */
+.exf-gantt .gantt-container .popup-wrapper .agg-table th {
+  box-sizing: border-box;
+  padding: 6px 5px 6px 0;
+  border-bottom: 2px solid #8f9aa5;
+  background: #EAECEE;
+  color: #45494d;
+  font-weight: 600;
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.dark.exf-gantt .gantt-container .popup-wrapper .agg-table th,
+.dark .exf-gantt .gantt-container .popup-wrapper .agg-table th {
+  background: #303030;
+  color: #e5e5e5;
+}
+/* <<< SR: Aggregation table header ------------------------------------- */
 
 /* >>> SR: Aggregation popup row separators ------------------------------ */
 .exf-gantt .gantt-container .popup-wrapper .agg-table .agg-list-row td {
@@ -456,11 +476,16 @@
 
 .exf-gantt .gantt-container .popup-wrapper .agg-table .agg-title {
   min-width: 120px;
-  width: 256px;
   max-width: 256px;
   overflow-wrap: anywhere;
   white-space: normal;
 }
+
+/* >>> SR: Task columns in aggregation table ----------------------------- */
+.exf-gantt .gantt-container .popup-wrapper .agg-table .agg-extra-column {
+  white-space: nowrap;
+}
+/* <<< SR: Task columns in aggregation table ----------------------------- */
 
 /* >>> SR: Aggregation popup fixed row height -------------------------- */
 .exf-gantt .gantt-container .popup-wrapper .agg-popup-list-content .agg-table .agg-title {
@@ -473,7 +498,7 @@
 .exf-gantt .gantt-container .popup-wrapper .agg-table .agg-duration {
   width: 30px;
   max-width: 50px;
-  padding-right: 0;
+  padding-right: 5px;
 }
 /* <<< SR: Tabular aggregation popup list */
 
@@ -490,6 +515,7 @@
 .exf-gantt .gantt-container .popup-wrapper .agg-table .agg-color-cell {
   width: 10px;
   padding-right: 8px;
+  padding-left: 5px;
 }
 
 
