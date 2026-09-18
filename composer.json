@@ -1,0 +1,28 @@
+{
+    "name": "axenox/gantt-js",
+    "description": "Riel Gantt is an upgraded version of Frappe Gantt with support for multiple tasks per row and task aggregation.",
+    "type": "library",
+    "keywords": [
+        "gantt",
+        "svg",
+        "project management",
+        "riel-gantt",
+        "timeline aggregation",
+        "task aggregation",
+        "multiple tasks per row"
+    ],
+    "homepage": "https://github.com/axenox/gantt-js",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Sergej Riel",
+            "email": "sergej.riel@outlook.de",
+            "role": "Creator"
+        }
+    ],
+    "support": {
+        "source": "https://github.com/axenox/gantt-js",
+        "docs": "https://github.com/axenox/gantt-js#readme",
+        "issues": "https://github.com/axenox/gantt-js/issues"
+    }
+}
