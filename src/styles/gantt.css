@@ -417,15 +417,15 @@
   vertical-align: middle;
 }
 
-/* >>> SR: Default task popup table ------------------------------------- */
+/* >>> SR: Content-sized default task popup ----------------------------- */
 .exf-gantt .gantt-container .popup-wrapper .task-popup-table {
   margin-top: 0;
   width: 100%;
-  min-width: 100%;
+  min-width: 240px;
 }
 
 .exf-gantt .gantt-container .popup-wrapper .task-popup-table .task-popup-duration-spacer {
-  width: 100%;
+  /*width: 100%;*/
   padding: 0;
 }
 
@@ -434,7 +434,7 @@
   max-width: none;
   text-align: right;
 }
-/* <<< SR: Default task popup table ------------------------------------- */
+/* <<< SR: Content-sized default task popup ----------------------------- */
 
 /* >>> SR: Aggregation table header ------------------------------------- */
 .exf-gantt .gantt-container .popup-wrapper .agg-table th {

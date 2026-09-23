@@ -1,5 +1,15 @@
 # New Features
 
+<!-- >>> SR: Content-sized default task popup ------------------------------------------ -->
+## Content-sized normal task popups
+
+Normal task popups no longer inherit a percentage-based minimum width from the browser viewport. Their width now follows the task title or detail content, with a minimum content width of 240 px. Long titles can therefore widen a popup while short titles remain compact. Aggregation popups are unaffected.
+
+Affected files:
+
+- `src/gantt-js/src/styles/gantt.css`
+<!-- <<< SR: Content-sized default task popup ------------------------------------------ -->
+
 <!-- >>> SR: Viewport popup placement ------------------------------------------ -->
 ## Popup positioning outside the Gantt viewport
 

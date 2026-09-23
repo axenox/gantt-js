@@ -340,7 +340,7 @@ Task `columns` are inserted in their object order. Supplying a custom `popup` fu
 
 Set `popup_include_header: true` to show the matching column header above this row. This option is independent of `popup_aggregate_include_header`.
 
-If the task title is wider than the detail row, the normal popup table expands to the title width. Start, separator, end and custom columns keep their intrinsic content widths and remain grouped on the left. A dedicated spacer absorbs the remaining space before the right-aligned duration. Aggregation tables are unaffected.
+Normal popups use a minimum content width of 240 px and otherwise grow with their title or detail content instead of filling the browser viewport. If the task title is wider than the detail row, the normal popup table expands to the title width. Start, separator, end and custom columns keep their intrinsic content widths and remain grouped on the left. A dedicated spacer absorbs the remaining space before the right-aligned duration. Aggregation tables are unaffected.
 
 ### Aggregation popup options
 
