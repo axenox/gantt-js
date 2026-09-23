@@ -140,35 +140,41 @@ export default class Popup {
           // <<< SR: upperRowTasks ---------------------------------------------
         }
         // <<< SR: Bar Aggregation ---------------------------------------------
-        // >>> SR: Popup outside container fix ---------------------------------
-        this.position_inside_visible_container(x, y);
-        // <<< SR: Popup outside container fix ---------------------------------
+        // >>> SR: Viewport popup placement ------------------------------------
+        this.position_inside_viewport(x, y);
+        // <<< SR: Viewport popup placement ------------------------------------
         this.parent.classList.remove('hide');
     }
 
-    // <<< SR: Popup outside container fix -------------------------------------
-    position_inside_visible_container(x, y) {
-        const container = this.gantt.$container;
+    // >>> SR: Viewport popup placement ----------------------------------------
+    /**
+     * Positions the popup beside the pointer in the browser viewport so the
+     * Gantt container's header, scrollbar and overflow cannot clip it.
+     */
+    position_inside_viewport(x, y) {
         const margin = 8;
-        // >>> SR: Popup pointer fallback placement ----------------------------
         const pointerGap = 10;
-        // <<< SR: Popup pointer fallback placement ----------------------------
+        const viewportWidth = document.documentElement.clientWidth;
+        const viewportHeight = document.documentElement.clientHeight;
+        const availableWidth = Math.max(1, viewportWidth - margin * 2);
+        const availableHeight = Math.max(1, viewportHeight - margin * 2);
 
         this.parent.style.visibility = 'hidden';
         this.parent.style.left = '0px';
         this.parent.style.top = '0px';
-        this.parent.style.maxWidth = Math.max(160, container.clientWidth - margin * 2) + 'px';
+        this.parent.style.maxWidth = `${availableWidth}px`;
+        this.parent.style.maxHeight = `${availableHeight}px`;
+        this.parent.style.overflow = 'auto';
         this.parent.classList.remove('hide');
 
         const popupWidth = this.parent.offsetWidth;
         const popupHeight = this.parent.offsetHeight;
 
-        const minLeft = container.scrollLeft + margin;
-        const maxLeft = container.scrollLeft + container.clientWidth - popupWidth - margin;
-        const minTop = container.scrollTop + margin;
-        const maxTop = container.scrollTop + container.clientHeight - popupHeight - margin;
+        const minLeft = margin;
+        const maxLeft = viewportWidth - popupWidth - margin;
+        const minTop = margin;
+        const maxTop = viewportHeight - popupHeight - margin;
 
-        // >>> SR: Popup pointer fallback placement ----------------------------
         const maxSafeLeft = Math.max(minLeft, maxLeft);
         const maxSafeTop = Math.max(minTop, maxTop);
         const rightLeft = x + pointerGap;
@@ -193,10 +199,10 @@ export default class Popup {
 
         this.parent.style.left = Math.max(minLeft, Math.min(desiredLeft, maxSafeLeft)) + 'px';
         this.parent.style.top = Math.max(minTop, Math.min(desiredTop, maxSafeTop)) + 'px';
-        // <<< SR: Popup pointer fallback placement ----------------------------
         this.parent.style.visibility = '';
     }
-    // >>> SR: Popup outside container fix ---------------------------------------------
+    // <<< SR: Viewport popup placement ----------------------------------------
+
     hide() {
         // >>> SR: Aggregation popup Gantt ------------------------------------
         this.destroy_popup_gantt?.();

@@ -390,8 +390,10 @@ export default class Bar {
                 this.gantt.lock_popup_on_click();
                 // <<< SR: Hover click popup -----------------------------------
                 this.gantt.show_popup({
-                    x: e.offsetX || e.layerX,
-                    y: e.offsetY || e.layerY,
+                    // >>> SR: Viewport popup placement -------------------------
+                    x: e.clientX,
+                    y: e.clientY,
+                    // <<< SR: Viewport popup placement -------------------------
                     task: this.task,
                     target: this.$bar,
                 });
@@ -407,8 +409,10 @@ export default class Bar {
                 )
                 // <<< SR: Hover click popup -----------------------------------
                     this.gantt.show_popup({
-                        x: e.offsetX || e.layerX,
-                        y: e.offsetY || e.layerY,
+                        // >>> SR: Viewport popup placement ---------------------
+                        x: e.clientX,
+                        y: e.clientY,
+                        // <<< SR: Viewport popup placement ---------------------
                         task: this.task,
                         target: this.$bar,
                     });

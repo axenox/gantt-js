@@ -365,6 +365,15 @@
 
 /*Aggregation additions*/
 
+/* >>> SR: Viewport popup placement ------------------------------------------ */
+
+.gantt-container > .popup-wrapper {
+  position: fixed;
+  box-sizing: border-box;
+}
+
+/* <<< SR: Viewport popup placement ------------------------------------------ */
+
 /* >>> bar and bar hover colors */
 
 .exf-gantt .gantt .bar:not(.bar-invalid) {

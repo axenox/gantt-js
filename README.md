@@ -15,6 +15,7 @@
 -   **Aggregation bars**: when too many tasks overlap in one row, hidden lower-lane tasks are represented by a compact `+N` aggregation bar.
 -   **Priority-aware aggregation**: use a task `priority` to keep important tasks visible in the upper lane.
 -   **Aggregation popups**: show aggregate members as a list or table, optionally with a compact Gantt preview.
+-   **Viewport-safe popups**: task and aggregation popups can overlay the Gantt header and scrollbar without being clipped by the chart container.
 -   **Custom date formatter**: plug in your application date formatter globally.
 -   **View build helpers**: build custom view modes from simplified configuration objects.
 -   **Standard Frappe Gantt features**: custom views, ignored periods, localization, dependencies, read-only modes and progress display.
@@ -323,7 +324,7 @@ Context properties:
 | `set_title`, `set_subtitle`, `set_details` | Set popup section HTML. |
 | `add_action` | Adds an action button. Signature: `(html, callback)`. |
 
-The popup is positioned next to the pointer when possible. It prefers the right side, then the left side. If neither side has enough room, it is placed below the pointer and falls back above the pointer when the lower side would leave too little visible space.
+The popup is positioned next to the pointer when possible. It prefers the right side, then the left side. If neither side has enough room, it is placed below the pointer and falls back above the pointer when the lower side would leave too little visible space. Popups use viewport positioning, so short Gantt charts do not clip them at the sticky header or scrollbar. Their final position is limited to the browser viewport; oversized aggregation popups become internally scrollable. Any horizontal or vertical Gantt scroll closes the open popup because its task may have moved away from the fixed viewport position.
 
 ### Aggregation popup options
 
