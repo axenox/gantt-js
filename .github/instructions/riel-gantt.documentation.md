@@ -1,5 +1,22 @@
 # New Features
 
+<!-- >>> SR: Viewport popup placement ------------------------------------------ -->
+## Popup positioning outside the Gantt viewport
+
+Normal and aggregation popups now use browser viewport coordinates and fixed positioning. A short Gantt with only one row can therefore show its popup over the sticky header and scrollbar instead of clipping it at the `.gantt-container` boundaries.
+
+The existing placement order remains unchanged: right of the pointer, left when there is not enough room, then below or above as a fallback. The final position is clamped to the browser viewport. If a large aggregation popup exceeds the available browser height or width, the popup becomes internally scrollable.
+
+As soon as the Gantt container scrolls horizontally or vertically, any open normal or aggregation popup is closed. A click lock in the combined hover mode is released as well.
+
+Affected files:
+
+- `src/gantt-js/src/bar.js`
+- `src/gantt-js/src/index.js`
+- `src/gantt-js/src/popup.js`
+- `src/gantt-js/src/styles/gantt.css`
+<!-- <<< SR: Viewport popup placement ------------------------------------------ -->
+
 <!-- >>> SR: Simple view mode config ------------------------------------------ -->
 ## Simple view mode config directly in `view_modes`
 
