@@ -455,13 +455,19 @@
   min-width: 240px;
 }
 
+.exf-gantt .gantt-container .popup-wrapper .task-popup-table th:not(.task-popup-duration-spacer),
+.exf-gantt .gantt-container .popup-wrapper .task-popup-table td:not(.task-popup-duration-spacer) {
+  width: 10px;
+  white-space: nowrap;
+}
+
 .exf-gantt .gantt-container .popup-wrapper .task-popup-table .task-popup-duration-spacer {
-  /*width: 100%;*/
+  width: auto;
   padding: 0;
 }
 
 .exf-gantt .gantt-container .popup-wrapper .task-popup-table .agg-duration {
-  width: auto;
+  width: 10px;
   max-width: none;
   text-align: right;
 }
