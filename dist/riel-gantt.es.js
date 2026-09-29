@@ -4721,8 +4721,10 @@ class Bar {
         }
         this.gantt.lock_popup_on_click();
         this.gantt.show_popup({
-          x: e.offsetX || e.layerX,
-          y: e.offsetY || e.layerY,
+          // >>> SR: Viewport popup placement -------------------------
+          x: e.clientX,
+          y: e.clientY,
+          // <<< SR: Viewport popup placement -------------------------
           task: this.task,
           target: this.$bar
         });
@@ -4733,8 +4735,10 @@ class Bar {
       timeout = setTimeout(() => {
         if (this.gantt.options.popup_on === "hover" && !this.gantt.is_popup_locked_by_click())
           this.gantt.show_popup({
-            x: e.offsetX || e.layerX,
-            y: e.offsetY || e.layerY,
+            // >>> SR: Viewport popup placement ---------------------
+            x: e.clientX,
+            y: e.clientY,
+            // <<< SR: Viewport popup placement ---------------------
             task: this.task,
             target: this.$bar
           });
@@ -5394,25 +5398,34 @@ class Popup {
         );
       }
     }
-    this.position_inside_visible_container(x, y);
+    this.position_inside_viewport(x, y);
     this.parent.classList.remove("hide");
   }
-  // <<< SR: Popup outside container fix -------------------------------------
-  position_inside_visible_container(x, y) {
-    const container = this.gantt.$container;
+  // >>> SR: Viewport popup placement ----------------------------------------
+  /**
+   * Positions the popup beside the pointer in the browser viewport so the
+   * Gantt container's header, scrollbar and overflow cannot clip it.
+   */
+  position_inside_viewport(x, y) {
     const margin = 8;
     const pointerGap = 10;
+    const viewportWidth = document.documentElement.clientWidth;
+    const viewportHeight = document.documentElement.clientHeight;
+    const availableWidth = Math.max(1, viewportWidth - margin * 2);
+    const availableHeight = Math.max(1, viewportHeight - margin * 2);
     this.parent.style.visibility = "hidden";
     this.parent.style.left = "0px";
     this.parent.style.top = "0px";
-    this.parent.style.maxWidth = Math.max(160, container.clientWidth - margin * 2) + "px";
+    this.parent.style.maxWidth = `${availableWidth}px`;
+    this.parent.style.maxHeight = `${availableHeight}px`;
+    this.parent.style.overflow = "auto";
     this.parent.classList.remove("hide");
     const popupWidth = this.parent.offsetWidth;
     const popupHeight = this.parent.offsetHeight;
-    const minLeft = container.scrollLeft + margin;
-    const maxLeft = container.scrollLeft + container.clientWidth - popupWidth - margin;
-    const minTop = container.scrollTop + margin;
-    const maxTop = container.scrollTop + container.clientHeight - popupHeight - margin;
+    const minLeft = margin;
+    const maxLeft = viewportWidth - popupWidth - margin;
+    const minTop = margin;
+    const maxTop = viewportHeight - popupHeight - margin;
     const maxSafeLeft = Math.max(minLeft, maxLeft);
     const maxSafeTop = Math.max(minTop, maxTop);
     const rightLeft = x + pointerGap;
@@ -5437,7 +5450,7 @@ class Popup {
     this.parent.style.top = Math.max(minTop, Math.min(desiredTop, maxSafeTop)) + "px";
     this.parent.style.visibility = "";
   }
-  // >>> SR: Popup outside container fix ---------------------------------------------
+  // <<< SR: Viewport popup placement ----------------------------------------
   hide() {
     this.destroy_popup_gantt?.();
     this.parent.classList.add("hide");
@@ -7376,6 +7389,8 @@ class Gantt {
       });
     }
     $.on(this.$container, "scroll", (e) => {
+      this.unlock_popup_on_click();
+      this.hide_popup();
       let localBars = [];
       const ids = this.bars.map(
         ({ group }) => group.getAttribute("data-id")

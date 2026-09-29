@@ -1595,6 +1595,11 @@ export default class Gantt {
         }
 
         $.on(this.$container, 'scroll', (e) => {
+            // >>> SR: Hide popup on Gantt scroll -------------------------------
+            // A fixed popup no longer follows its task while the chart scrolls.
+            this.unlock_popup_on_click();
+            this.hide_popup();
+            // <<< SR: Hide popup on Gantt scroll -------------------------------
             let localBars = [];
             const ids = this.bars.map(({ group }) =>
                 group.getAttribute('data-id'),
