@@ -5742,6 +5742,32 @@
       return Array.from(columnKeys);
     }
     // <<< SR: Task columns in aggregation table --------------------------------
+    // >>> SR: Styled popup column values ----------------------------------------
+    /**
+     * Renders a popup column value as plain text or as a styled badge when the
+     * value provides text, background color or text color properties.
+     *
+     * @param {HTMLTableCellElement} cell table cell receiving the value
+     * @param {*} value task column value
+     */
+    render_task_column_value(cell, value) {
+      const isStyledValue = value !== null && typeof value === "object" && !Array.isArray(value) && (Object.hasOwn(value, "text") || Object.hasOwn(value, "color") || Object.hasOwn(value, "textcolor"));
+      if (!isStyledValue) {
+        cell.textContent = value == null ? "" : String(value);
+        return;
+      }
+      const badge = document.createElement("span");
+      badge.className = "task-popup-column-value";
+      badge.textContent = value.text == null ? "" : String(value.text);
+      if (value.color != null) {
+        badge.style.backgroundColor = String(value.color);
+      }
+      if (value.textcolor != null) {
+        badge.style.color = String(value.textcolor);
+      }
+      cell.appendChild(badge);
+    }
+    // <<< SR: Styled popup column values ----------------------------------------
     // >>> SR: Aggregation table header -----------------------------------------
     /**
      * Builds a table header for the standard and task-specific popup columns.
@@ -5881,7 +5907,7 @@
           const value = m.columns?.[columnKey];
           extraCell.className = "agg-extra-column";
           extraCell.dataset.column = columnKey;
-          extraCell.textContent = value == null ? "" : String(value);
+          this.render_task_column_value(extraCell, value);
           tr.appendChild(extraCell);
         });
         if (includeDurationSpacer) {

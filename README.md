@@ -97,7 +97,7 @@ Riel Gantt supports the standard Frappe Gantt task fields and adds row, priority
 | `dependencies` | Comma-separated dependency ids or an array of ids.                                                                                                                    |
 | `lineIndex` | Groups tasks into the same logical row. Tasks without `lineIndex` fall back to their task index.                                                                      |
 | `priority` | Numeric priority used by aggregation logic. Higher values are kept visible first when tasks overlap.                                                                  |
-| `columns` | Object with additional values rendered between the dates and duration in normal popups and between the task name and duration in table-style aggregation popups.                |
+| `columns` | Object with additional values rendered between the dates and duration in normal popups and between the task name and duration in table-style aggregation popups. Values can be strings or styled objects with `text`, `color` and `textcolor`. |
 | `draggable` | Set to `false` to prevent dragging or resizing this task.                                                                                                             |
 | `readonly` | Set to `true` for a task that should not be edited. (not stable)                                                                                                      |
 | `custom_class` | Additional CSS class added to the task bar group.                                                                                                                     |
@@ -362,11 +362,20 @@ For `popup_aggregate_style: 'table'`, tasks can provide a `columns` object:
 {
     id: '265',
     name: 'Planning procedure',
-    columns: { status: 'done', type: 'Environment' },
+    columns: {
+        status: {
+            text: 'Done',
+            color: 'green',
+            textcolor: 'white',
+        },
+        type: 'Environment',
+    },
 }
 ```
 
 Each object key defines an additional shared table column, and its value is shown between the task name and duration. Column order follows the first occurrence of each key across the displayed tasks. Missing values produce an empty cell so all rows stay aligned.
+
+A column value can remain a string or use `{ text, color, textcolor }`. Styled values are rendered as rounded badges in normal task popups and table-style aggregation popups. `color` sets the badge background and `textcolor` sets its text color; both accept CSS color values.
 
 Set `popup_aggregate_include_header: true` to add the header `Start | - | End | Title | ... | Duration`. The `...` positions use the keys from task `columns`. With `popup_aggregate_expand_tasks: true`, the table header occupies the same vertical header area as the nested Gantt so task rows remain horizontally aligned.
 

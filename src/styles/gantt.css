@@ -519,6 +519,14 @@
 }
 /* <<< SR: Task columns in aggregation table ----------------------------- */
 
+/* >>> SR: Styled popup column values ------------------------------------- */
+.exf-gantt .gantt-container .popup-wrapper .task-popup-column-value {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+/* <<< SR: Styled popup column values ------------------------------------- */
+
 /* >>> SR: Aggregation popup fixed row height -------------------------- */
 .exf-gantt .gantt-container .popup-wrapper .agg-popup-list-content .agg-table .agg-title {
   overflow: hidden;
