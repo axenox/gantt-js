@@ -128,7 +128,8 @@ Riel Gantt supports the standard Frappe Gantt task fields and adds row, priority
 | `lines` | `'both'` | Grid lines: `'none'`, `'vertical'`, `'horizontal'` or `'both'`.                                                                                                                                                                                  |
 | `move_dependencies` | `true` | Moves dependent tasks automatically when a task is moved.                                                                                                                                                                                        |
 | `padding` | `18` | Legacy padding around bars. With aggregation layouts, vertical spacing is mainly controlled by row and lane options.                                                                                                                             |
-| `popup` | Default popup renderer | Function used to render task and aggregation popups. See [Popup Configuration](#popup-configuration).                                                                                                                                            |
+| `popup` | `(ctx) => ctx.render_default_popup()` | Renderer for normal task popups; `false` disables only normal popups. See [Popup Configuration](#popup-configuration). |
+| `popup_aggregated` | `(ctx) => ctx.render_default_aggregated_popup()` | Independent renderer for aggregation popups; `false` disables only aggregation popups. |
 | `popup_include_header` | `false` | Shows the `Start | - | End | [task columns] | Duration` header in the default task popup.                                                                                                                                        |
 | `popup_on` | `'click'` | Popup trigger: `'click'` or `'hover'`. In `hover` mode, hovering shows the popup and leaving the bar hides it; clicking a bar pins the popup until the user clicks outside a bar or clicks another bar.                                          |
 | `readonly_progress` | `false` | Disables progress editing.                                                                                                                                                                                                                       |
@@ -299,7 +300,22 @@ Supported header helper tokens include `~weekRange` for week ranges and `~decade
 
 ## Popup Configuration
 
-`popup` is a function. If it returns:
+<!-- >>> SR: Independent aggregated popup renderer -------------------------- -->
+`popup` renders normal tasks. `popup_aggregated` renders aggregation bars (and tasks carrying aggregation members). Only the matching callback is invoked; custom aggregation content is never followed by an automatically appended member list.
+
+Both defaults can be configured explicitly, as in the demo `src/main.js`:
+
+```js
+popup: (ctx) => ctx.render_default_popup(),
+popup_aggregated: (ctx) => ctx.render_default_aggregated_popup(),
+```
+
+The normal template renders the title, description, dates, task columns and duration using the built-in table and existing styles. The aggregation template preserves the list/table layout and optional mini Gantt, including row alignment and cleanup. Existing `popup_include_header` and `popup_aggregate_*` options still configure their respective templates.
+
+Setting either option to `false` disables only that popup type. To disable all popups, set **both** to `false`. Previously, `popup: false` disabled both types, and a custom `popup` callback also controlled the aggregation heading; move such aggregation customizations to `popup_aggregated`.
+
+Both callbacks receive the context below and share the same return-value contract. If a callback returns:
+<!-- <<< SR: Independent aggregated popup renderer -------------------------- -->
 
 -   `false`, no popup is shown.
 -   `undefined`, the popup is rendered by mutating the supplied popup context.
@@ -326,6 +342,7 @@ Context properties:
 | `get_title`, `get_subtitle`, `get_details` | Read popup section nodes. |
 | `set_title`, `set_subtitle`, `set_details` | Set popup section HTML. |
 | `render_default_popup` | Renders the built-in task popup. A custom renderer may call this explicitly before adding its own content. |
+| `render_default_aggregated_popup` | Renders the built-in aggregation popup with its configured list/table and optional mini Gantt. Available in both callback contexts. |
 | `add_action` | Adds an action button. Signature: `(html, callback)`. |
 
 The popup is positioned next to the pointer when possible. It prefers the right side, then the left side. If neither side has enough room, it is placed below the pointer and falls back above the pointer when the lower side would leave too little visible space. Popups use viewport positioning, so short Gantt charts do not clip them at the sticky header or scrollbar. Their final position is limited to the browser viewport; oversized aggregation popups become internally scrollable. Any horizontal or vertical Gantt scroll closes the open popup because its task may have moved away from the fixed viewport position.

@@ -5309,12 +5309,13 @@
     // <<< SR: Bar Aggregation -------------------------------------------------
   }
   class Popup {
-    constructor(parent, popup_func, gantt) {
+    // >>> SR: Independent aggregated popup renderer --------------------------
+    constructor(parent, gantt) {
       this.parent = parent;
-      this.popup_func = popup_func;
       this.gantt = gantt;
       this.make();
     }
+    // <<< SR: Independent aggregated popup renderer --------------------------
     make() {
       this.parent.innerHTML = `
             <div class="title"></div>
@@ -5329,9 +5330,13 @@
       this.actions = this.parent.querySelector(".actions");
     }
     show({ x, y, task, target }) {
+      this.make();
+      const isAggregated = task._isAggregate || !!task._aggMembers?.length;
+      const popupFunc = isAggregated ? this.gantt.options.popup_aggregated : this.gantt.options.popup;
+      if (popupFunc === false) return;
       this.parent.style.pointerEvents = this.gantt.options.popup_on === "hover" && !this.gantt.is_popup_locked_by_click() ? "none" : "";
       this.actions.innerHTML = "";
-      let html = this.popup_func({
+      let html = popupFunc({
         task,
         chart: this.gantt,
         get_title: () => this.title,
@@ -5342,6 +5347,7 @@
         set_details: (details) => this.details.innerHTML = details,
         // >>> SR: Default task popup table --------------------------------
         render_default_popup: () => this.render_default_popup(task),
+        render_default_aggregated_popup: () => this.render_default_aggregated_popup(task),
         // <<< SR: Default task popup table --------------------------------
         add_action: (html2, func) => {
           let action = this.gantt.create_el({
@@ -5354,14 +5360,32 @@
           action.onclick = (e) => func(task, this.gantt, e);
         }
       });
-      if (html === false) return;
-      if (html) this.parent.innerHTML = html;
+      if (html === false) {
+        this.hide();
+        return;
+      }
+      if (html) {
+        this.destroy_popup_gantt();
+        this.parent.innerHTML = html;
+      }
       if (this.actions.innerHTML === "") this.actions.remove();
-      else this.parent.appendChild(this.actions);
+      else if (!this.actions.parentElement) this.parent.appendChild(this.actions);
+      this.position_inside_viewport(x, y);
+      this.parent.classList.remove("hide");
+    }
+    // >>> SR: Independent aggregated popup renderer --------------------------
+    /**
+     * Renders the built-in aggregation list/table and optional nested Gantt,
+     * without invoking the normal task popup callback.
+     * @param task aggregation bar or task carrying aggregation members
+     */
+    render_default_aggregated_popup(task) {
       this.clear_aggregation_list();
+      this.title.textContent = task.name ?? "";
+      this.subtitle.textContent = task.description ?? "";
+      this.details.innerHTML = "";
       const members = task._isAggregate ? task._members || [] : task._aggMembers || [];
       if (members?.length) {
-        this.parent.querySelector(".details").innerHTML = "";
         let appendTarget = this.parent;
         let popupGanttTarget = null;
         let popupGanttListContent = null;
@@ -5405,9 +5429,8 @@
           );
         }
       }
-      this.position_inside_viewport(x, y);
-      this.parent.classList.remove("hide");
     }
+    // <<< SR: Independent aggregated popup renderer --------------------------
     // >>> SR: Default task popup table ---------------------------------------
     /**
      * Renders the standard task popup with its dates, custom columns and
@@ -5629,6 +5652,9 @@
         readonly_progress: true,
         move_dependencies: false,
         popup: false,
+        // >>> SR: Independent aggregated popup renderer ----------------------
+        popup_aggregated: false,
+        // <<< SR: Independent aggregated popup renderer ----------------------
         stripe_rows: this.gantt.options.stripe_rows,
         holidays: null,
         //popup_on: 'click', //TODO SR: currently dont work.
@@ -6318,6 +6344,10 @@
     // The Popup class owns the default DOM renderer. A custom popup option
     // replaces this callback and therefore remains authoritative.
     popup: (ctx) => ctx.render_default_popup(),
+    // >>> SR: Independent aggregated popup renderer --------------------------
+    // Aggregation content is owned by this callback, not appended to popup.
+    popup_aggregated: (ctx) => ctx.render_default_aggregated_popup(),
+    // <<< SR: Independent aggregated popup renderer --------------------------
     // Shows descriptive column headers in the default task popup.
     popup_include_header: false,
     // <<< SR: Default task popup table ---------------------------------------
@@ -7839,11 +7869,15 @@
     }
     // <<< SR: Hover click popup -----------------------------------------------
     show_popup(opts) {
-      if (this.options.popup === false) return;
+      const isAggregated = opts.task._isAggregate || !!opts.task._aggMembers?.length;
+      const popupFunc = isAggregated ? this.options.popup_aggregated : this.options.popup;
+      if (popupFunc === false) {
+        this.hide_popup();
+        return;
+      }
       if (!this.popup) {
         this.popup = new Popup(
           this.$popup_wrapper,
-          this.options.popup,
           this
         );
       }

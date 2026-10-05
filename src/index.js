@@ -1992,15 +1992,23 @@ export default class Gantt {
     // <<< SR: Hover click popup -----------------------------------------------
 
     show_popup(opts) {
-        if (this.options.popup === false) return;
+        // >>> SR: Independent aggregated popup renderer ----------------------
+        const isAggregated = opts.task._isAggregate || !!opts.task._aggMembers?.length;
+        const popupFunc = isAggregated
+            ? this.options.popup_aggregated
+            : this.options.popup;
+        if (popupFunc === false) {
+            this.hide_popup();
+            return;
+        }
         if (!this.popup) {
             this.popup = new Popup(
                 this.$popup_wrapper,
-                this.options.popup,
                 this,
             );
         }
         this.popup.show(opts);
+        // <<< SR: Independent aggregated popup renderer ----------------------
     }
 
     hide_popup() {

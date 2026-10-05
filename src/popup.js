@@ -1,12 +1,13 @@
 import date_utils from './date_utils';
 export default class Popup {
-    constructor(parent, popup_func, gantt) {
+    // >>> SR: Independent aggregated popup renderer --------------------------
+    constructor(parent, gantt) {
         this.parent = parent;
-        this.popup_func = popup_func;
         this.gantt = gantt;
 
         this.make();
     }
+    // <<< SR: Independent aggregated popup renderer --------------------------
 
     make() {
         this.parent.innerHTML = `
@@ -24,6 +25,15 @@ export default class Popup {
     }
 
     show({ x, y, task, target }) {
+        // >>> SR: Independent aggregated popup renderer ----------------------
+        // Recreate section nodes after custom HTML or an expanded popup.
+        this.make();
+        const isAggregated = task._isAggregate || !!task._aggMembers?.length;
+        const popupFunc = isAggregated
+            ? this.gantt.options.popup_aggregated
+            : this.gantt.options.popup;
+        if (popupFunc === false) return;
+        // <<< SR: Independent aggregated popup renderer ----------------------
         // >>> SR: Stable hover popup ------------------------------------------
         // In hover mode the popup is only informational. If it captures the
         // pointer while it appears near the cursor, the bar receives mouseleave,
@@ -39,7 +49,8 @@ export default class Popup {
         // <<< SR: Hover click popup -------------------------------------------
         // <<< SR: Stable hover popup ------------------------------------------
         this.actions.innerHTML = '';
-        let html = this.popup_func({
+        // >>> SR: Independent aggregated popup renderer ----------------------
+        let html = popupFunc({
             task,
             chart: this.gantt,
             get_title: () => this.title,
@@ -50,6 +61,8 @@ export default class Popup {
             set_details: (details) => (this.details.innerHTML = details),
             // >>> SR: Default task popup table --------------------------------
             render_default_popup: () => this.render_default_popup(task),
+            render_default_aggregated_popup: () =>
+                this.render_default_aggregated_popup(task),
             // <<< SR: Default task popup table --------------------------------
             add_action: (html, func) => {
                 let action = this.gantt.create_el({
@@ -62,19 +75,39 @@ export default class Popup {
                 action.onclick = (e) => func(task, this.gantt, e);
             },
         });
-        if (html === false) return;
-        if (html) this.parent.innerHTML = html;
+        if (html === false) {
+            this.hide();
+            return;
+        }
+        if (html) {
+            this.destroy_popup_gantt();
+            this.parent.innerHTML = html;
+        }
 
         if (this.actions.innerHTML === '') this.actions.remove();
-        else this.parent.appendChild(this.actions);
+        else if (!this.actions.parentElement) this.parent.appendChild(this.actions);
+        // <<< SR: Independent aggregated popup renderer ----------------------
 
-        // >>> SR: Bar Aggregation ---------------------------------------------
+        // >>> SR: Viewport popup placement ------------------------------------
+        this.position_inside_viewport(x, y);
+        // <<< SR: Viewport popup placement ------------------------------------
+        this.parent.classList.remove('hide');
+    }
+
+    // >>> SR: Independent aggregated popup renderer --------------------------
+    /**
+     * Renders the built-in aggregation list/table and optional nested Gantt,
+     * without invoking the normal task popup callback.
+     * @param task aggregation bar or task carrying aggregation members
+     */
+    render_default_aggregated_popup(task) {
         this.clear_aggregation_list();
+        this.title.textContent = task.name ?? '';
+        this.subtitle.textContent = task.description ?? '';
+        this.details.innerHTML = '';
         const members = task._isAggregate ? (task._members || []) : (task._aggMembers || []);
   
         if (members?.length) {
-          // clearing the details section of the aggregates bar because it is containing wrong date information.
-          this.parent.querySelector('.details').innerHTML = '';
           // >>> SR: upperRowTasks ---------------------------------------------
           //TODO SR: Work in progress: currently, the upper part looks exactly like the lower. Format the popup so the user can differentiate then visually.
           // >>> SR: Aggregation popup Gantt ----------------------------------
@@ -142,12 +175,8 @@ export default class Popup {
           // <<< SR: Aggregation popup Gantt ----------------------------------
           // <<< SR: upperRowTasks ---------------------------------------------
         }
-        // <<< SR: Bar Aggregation ---------------------------------------------
-        // >>> SR: Viewport popup placement ------------------------------------
-        this.position_inside_viewport(x, y);
-        // <<< SR: Viewport popup placement ------------------------------------
-        this.parent.classList.remove('hide');
     }
+    // <<< SR: Independent aggregated popup renderer --------------------------
 
     // >>> SR: Default task popup table ---------------------------------------
     /**
@@ -407,6 +436,9 @@ export default class Popup {
         readonly_progress: true,
         move_dependencies: false,
         popup: false,
+        // >>> SR: Independent aggregated popup renderer ----------------------
+        popup_aggregated: false,
+        // <<< SR: Independent aggregated popup renderer ----------------------
         stripe_rows: this.gantt.options.stripe_rows,
         holidays: null,
         //popup_on: 'click', //TODO SR: currently dont work.

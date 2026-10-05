@@ -341,6 +341,10 @@ const DEFAULT_OPTIONS = {
     // The Popup class owns the default DOM renderer. A custom popup option
     // replaces this callback and therefore remains authoritative.
     popup: (ctx) => ctx.render_default_popup(),
+    // >>> SR: Independent aggregated popup renderer --------------------------
+    // Aggregation content is owned by this callback, not appended to popup.
+    popup_aggregated: (ctx) => ctx.render_default_aggregated_popup(),
+    // <<< SR: Independent aggregated popup renderer --------------------------
     // Shows descriptive column headers in the default task popup.
     popup_include_header: false,
     // <<< SR: Default task popup table ---------------------------------------
