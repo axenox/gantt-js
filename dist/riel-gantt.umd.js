@@ -5762,6 +5762,9 @@
       if (value.color != null) {
         badge.style.backgroundColor = String(value.color);
       }
+      if (badge.style.backgroundColor) {
+        badge.classList.add("task-popup-column-value-with-background");
+      }
       if (value.textcolor != null) {
         badge.style.color = String(value.textcolor);
       }

@@ -520,11 +520,17 @@
 /* <<< SR: Task columns in aggregation table ----------------------------- */
 
 /* >>> SR: Styled popup column values ------------------------------------- */
+/* >>> SR: Background-aware popup column padding -------------------------- */
 .exf-gantt .gantt-container .popup-wrapper .task-popup-column-value {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: 5px;
+  line-height: 1.2;
 }
+
+.exf-gantt .gantt-container .popup-wrapper .task-popup-column-value-with-background {
+  padding: 3px 7px;
+}
+/* <<< SR: Background-aware popup column padding -------------------------- */
 /* <<< SR: Styled popup column values ------------------------------------- */
 
 /* >>> SR: Aggregation popup fixed row height -------------------------- */

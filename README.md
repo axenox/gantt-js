@@ -377,6 +377,10 @@ Each object key defines an additional shared table column, and its value is show
 
 A column value can remain a string or use `{ text, color, textcolor }`. Styled values are rendered as rounded badges in normal task popups and table-style aggregation popups. `color` sets the badge background and `textcolor` sets its text color; both accept CSS color values.
 
+<!-- >>> SR: Background-aware popup column padding -------------------------- -->
+Only values with a background color receive horizontal badge padding (`3px 7px`). Values without a background, including objects with only `text` or `textcolor`, use `3px 0` so their text starts directly below the column header. Colored badges keep their left background edge aligned with the header.
+<!-- <<< SR: Background-aware popup column padding -------------------------- -->
+
 Set `popup_aggregate_include_header: true` to add the header `Start | - | End | Title | ... | Duration`. The `...` positions use the keys from task `columns`. With `popup_aggregate_expand_tasks: true`, the table header occupies the same vertical header area as the nested Gantt so task rows remain horizontally aligned.
 
 ## Date Formatting

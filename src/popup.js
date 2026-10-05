@@ -579,6 +579,11 @@ export default class Popup {
       if (value.color != null) {
         badge.style.backgroundColor = String(value.color);
       }
+      // >>> SR: Background-aware popup column padding -----------------------
+      if (badge.style.backgroundColor) {
+        badge.classList.add('task-popup-column-value-with-background');
+      }
+      // <<< SR: Background-aware popup column padding -----------------------
       if (value.textcolor != null) {
         badge.style.color = String(value.textcolor);
       }
