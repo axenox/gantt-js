@@ -303,7 +303,7 @@ Supported header helper tokens include `~weekRange` for week ranges and `~decade
 <!-- >>> SR: Independent aggregated popup renderer -------------------------- -->
 `popup` renders normal tasks. `popup_aggregated` renders aggregation bars (and tasks carrying aggregation members). Only the matching callback is invoked; custom aggregation content is never followed by an automatically appended member list.
 
-Both defaults can be configured explicitly, as in the demo `src/main.js`:
+Both defaults can be configured explicitly:
 
 ```js
 popup: (ctx) => ctx.render_default_popup(),
@@ -343,7 +343,13 @@ Context properties:
 | `set_title`, `set_subtitle`, `set_details` | Set popup section HTML. |
 | `render_default_popup` | Renders the built-in task popup. A custom renderer may call this explicitly before adding its own content. |
 | `render_default_aggregated_popup` | Renders the built-in aggregation popup with its configured list/table and optional mini Gantt. Available in both callback contexts. |
+| `on_mount(callback)` | Registers a synchronous callback after popup content is attached and measurable, but before final viewport placement. |
+| `on_cleanup(callback)` | Registers resource cleanup when the popup closes, is replaced or the chart is destroyed. Each registered callback runs once. |
 | `add_action` | Adds an action button. Signature: `(html, callback)`. |
+
+<!-- >>> SR: Custom popup lifecycle ----------------------------------------- -->
+Custom renderers can use `ctx.on_mount(callback)` to initialize embedded components that need container measurements. During mounting the popup participates in layout but remains hidden until final placement. Use `ctx.on_cleanup(callback)` to dispose embedded charts, observers or listeners. Cleanup also runs for callbacks returning `false`; their mount callbacks do not run. Both hooks require a function. Built-in aggregation previews use the same mount phase so row alignment is measured after popup sections are finalized, including removal of empty action sections.
+<!-- <<< SR: Custom popup lifecycle ----------------------------------------- -->
 
 The popup is positioned next to the pointer when possible. It prefers the right side, then the left side. If neither side has enough room, it is placed below the pointer and falls back above the pointer when the lower side would leave too little visible space. Popups use viewport positioning, so short Gantt charts do not clip them at the sticky header or scrollbar. Their final position is limited to the browser viewport; oversized aggregation popups become internally scrollable. Any horizontal or vertical Gantt scroll closes the open popup because its task may have moved away from the fixed viewport position.
 

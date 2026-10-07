@@ -4,6 +4,10 @@ export default class Popup {
     constructor(parent, gantt) {
         this.parent = parent;
         this.gantt = gantt;
+        // >>> SR: Custom popup lifecycle -------------------------------------
+        this.cleanup_callbacks = [];
+        this.mount_callbacks = [];
+        // <<< SR: Custom popup lifecycle -------------------------------------
 
         this.make();
     }
@@ -49,6 +53,10 @@ export default class Popup {
         // <<< SR: Hover click popup -------------------------------------------
         // <<< SR: Stable hover popup ------------------------------------------
         this.actions.innerHTML = '';
+        // >>> SR: Custom popup lifecycle -------------------------------------
+        const mountCallbacks = [];
+        this.mount_callbacks = mountCallbacks;
+        // <<< SR: Custom popup lifecycle -------------------------------------
         // >>> SR: Independent aggregated popup renderer ----------------------
         let html = popupFunc({
             task,
@@ -63,6 +71,20 @@ export default class Popup {
             render_default_popup: () => this.render_default_popup(task),
             render_default_aggregated_popup: () =>
                 this.render_default_aggregated_popup(task),
+            // >>> SR: Custom popup lifecycle ---------------------------------
+            on_mount: (callback) => {
+                if (typeof callback !== 'function') {
+                    throw new TypeError('Popup on_mount expects a function.');
+                }
+                mountCallbacks.push(callback);
+            },
+            on_cleanup: (callback) => {
+                if (typeof callback !== 'function') {
+                    throw new TypeError('Popup on_cleanup expects a function.');
+                }
+                this.cleanup_callbacks.push(callback);
+            },
+            // <<< SR: Custom popup lifecycle ---------------------------------
             // <<< SR: Default task popup table --------------------------------
             add_action: (html, func) => {
                 let action = this.gantt.create_el({
@@ -88,6 +110,13 @@ export default class Popup {
         else if (!this.actions.parentElement) this.parent.appendChild(this.actions);
         // <<< SR: Independent aggregated popup renderer ----------------------
 
+        // >>> SR: Custom popup lifecycle -------------------------------------
+        if (mountCallbacks.length) {
+            this.parent.style.visibility = 'hidden';
+            this.parent.classList.remove('hide');
+            mountCallbacks.forEach((callback) => callback());
+        }
+        // <<< SR: Custom popup lifecycle -------------------------------------
         // >>> SR: Viewport popup placement ------------------------------------
         this.position_inside_viewport(x, y);
         // <<< SR: Viewport popup placement ------------------------------------
@@ -157,20 +186,27 @@ export default class Popup {
 
           // >>> SR: Aggregation popup Gantt ----------------------------------
           if (popupGanttTarget) {
-            // >>> SR: Popup Gantt initial window fill -------------------------
-            this.prepare_popup_for_nested_gantt_measurement();
-            // <<< SR: Popup Gantt initial window fill -------------------------
-            this.render_aggregation_popup_gantt(
-                popupGanttTarget,
-                aggregationTasks,
-            );
-            this.align_aggregation_popup_rows(popupGanttListContent);
-            // >>> SR: Aggregation popup row alignment -------------------------
-            this.bind_popup_gantt_alignment_refresh(
-                popupGanttTarget,
-                popupGanttListContent,
-            );
-            // <<< SR: Aggregation popup row alignment -------------------------
+            // >>> SR: Custom popup lifecycle ---------------------------------
+            // Measure only after empty action nodes have been removed.
+            this.mount_callbacks.push(() => {
+                // A returned HTML string may have replaced the default layout.
+                if (!this.parent.contains(popupGanttTarget)) return;
+                // >>> SR: Popup Gantt initial window fill ---------------------
+                this.prepare_popup_for_nested_gantt_measurement();
+                // <<< SR: Popup Gantt initial window fill ---------------------
+                this.render_aggregation_popup_gantt(
+                    popupGanttTarget,
+                    aggregationTasks,
+                );
+                this.align_aggregation_popup_rows(popupGanttListContent);
+                // >>> SR: Aggregation popup row alignment ---------------------
+                this.bind_popup_gantt_alignment_refresh(
+                    popupGanttTarget,
+                    popupGanttListContent,
+                );
+                // <<< SR: Aggregation popup row alignment ---------------------
+            });
+            // <<< SR: Custom popup lifecycle ---------------------------------
           }
           // <<< SR: Aggregation popup Gantt ----------------------------------
           // <<< SR: upperRowTasks ---------------------------------------------
@@ -258,6 +294,11 @@ export default class Popup {
     // <<< SR: Viewport popup placement ----------------------------------------
 
     hide() {
+        // >>> SR: Custom popup lifecycle -------------------------------------
+        const callbacks = this.cleanup_callbacks;
+        this.cleanup_callbacks = [];
+        callbacks.forEach((callback) => callback());
+        // <<< SR: Custom popup lifecycle -------------------------------------
         // >>> SR: Aggregation popup Gantt ------------------------------------
         this.destroy_popup_gantt?.();
         // <<< SR: Aggregation popup Gantt ------------------------------------
@@ -510,7 +551,14 @@ export default class Popup {
       const listTop = firstListRow.getBoundingClientRect().top;
       const offset = ganttTop - listTop;
 
-      listContent.style.marginTop = `${offset + manualOffset}px`
+      // >>> SR: Custom popup lifecycle ---------------------------------------
+      listContent.style.marginTop = `${offset + manualOffset}px`;
+      // Account for title margins that collapse when list content is moved.
+      const correction = ganttTop + manualOffset - firstListRow.getBoundingClientRect().top;
+      if (correction) {
+        listContent.style.marginTop = `${offset + manualOffset + correction}px`;
+      }
+      // <<< SR: Custom popup lifecycle ---------------------------------------
       // <<< SR: Aggregation popup row alignment -------------------------------
     }
 

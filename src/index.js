@@ -1922,7 +1922,9 @@ export default class Gantt {
     }
 
     unselect_all() {
-        if (this.popup) this.popup.parent.classList.add('hide');
+        // >>> SR: Custom popup lifecycle -------------------------------------
+        this.hide_popup();
+        // <<< SR: Custom popup lifecycle -------------------------------------
         this.$container
             .querySelectorAll('.date-range-highlight')
             .forEach((k) => k.classList.add('hide'));
@@ -2057,6 +2059,9 @@ export default class Gantt {
      * popups, which are recreated whenever the popup content changes.
      */
     destroy() {
+        // >>> SR: Custom popup lifecycle -------------------------------------
+        this.hide_popup();
+        // <<< SR: Custom popup lifecycle -------------------------------------
         if (this._onDocumentMouseup) {
             document.removeEventListener('mouseup', this._onDocumentMouseup);
             this._onDocumentMouseup = null;
