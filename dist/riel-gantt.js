@@ -4728,13 +4728,18 @@ var Gantt = (function() {
             y: e.clientY,
             // <<< SR: Viewport popup placement -------------------------
             task: this.task,
-            target: this.$bar
+            target: this.$bar,
+            // >>> SR: External popup requests -------------------------
+            event: e,
+            trigger: "click"
+            // <<< SR: External popup requests -------------------------
           });
         });
       }
-      let timeout;
       $.on(this.group, "mouseenter", (e) => {
-        timeout = setTimeout(() => {
+        clearTimeout(this._popup_timeout);
+        this._popup_timeout = setTimeout(() => {
+          this._popup_timeout = null;
           if (this.gantt.options.popup_on === "hover" && !this.gantt.is_popup_locked_by_click())
             this.gantt.show_popup({
               // >>> SR: Viewport popup placement ---------------------
@@ -4742,7 +4747,11 @@ var Gantt = (function() {
               y: e.clientY,
               // <<< SR: Viewport popup placement ---------------------
               task: this.task,
-              target: this.$bar
+              target: this.$bar,
+              // >>> SR: External popup requests ---------------------
+              event: e,
+              trigger: "hover"
+              // <<< SR: External popup requests ---------------------
             });
           if (!this.invalid) {
             this.gantt.$container.querySelector(`.highlight-${CSS.escape(task_id)}`).classList.remove("hide");
@@ -4750,7 +4759,8 @@ var Gantt = (function() {
         }, 200);
       });
       $.on(this.group, "mouseleave", () => {
-        clearTimeout(timeout);
+        clearTimeout(this._popup_timeout);
+        this._popup_timeout = null;
         if (this.gantt.options.popup_on === "hover" && !this.gantt.is_popup_locked_by_click())
           this.gantt.popup?.hide?.();
         if (!this.invalid) {
@@ -5306,11 +5316,42 @@ var Gantt = (function() {
     }
     // <<< SR: Bar Aggregation -------------------------------------------------
   }
+  function get_task_end(task) {
+    return task?.orig_end ?? task?._end ?? null;
+  }
+  function tasks_overlap(a, b) {
+    const aEnd = get_task_end(a);
+    const bEnd = get_task_end(b);
+    if (!a?._start || !b?._start || !aEnd || !bEnd) return false;
+    return a._start < bEnd && b._start < aEnd;
+  }
+  function compare_tasks_by_start_and_id(a, b) {
+    if (+a._start !== +b._start) return +a._start - +b._start;
+    const aId = Number.isFinite(+a.id) ? +a.id : String(a.id);
+    const bId = Number.isFinite(+b.id) ? +b.id : String(b.id);
+    return aId > bId ? 1 : aId < bId ? -1 : 0;
+  }
+  function get_overlapping_tasks(chart, task) {
+    if (!task?._start || !get_task_end(task)) return [];
+    return (chart.tasks || []).filter((candidate) => candidate && !candidate._isAggregate).filter((candidate) => candidate._rowIndex === task._rowIndex).filter((candidate) => tasks_overlap(candidate, task)).sort(compare_tasks_by_start_and_id);
+  }
+  function get_overlapping_upper_row_tasks(chart, aggregateTask) {
+    const aggregateStart = aggregateTask?._start;
+    const aggregateEnd = get_task_end(aggregateTask);
+    const aggregationLane = chart.get_aggregation_lane_index ? chart.get_aggregation_lane_index() : 1;
+    if (!aggregateStart || !aggregateEnd) return [];
+    const memberIds = new Set(
+      (aggregateTask._members || []).map((member) => String(member.id))
+    );
+    return (chart.tasks || []).filter((task) => task && !task._hidden && !task._isAggregate).filter((task) => task._rowIndex === aggregateTask._rowIndex).filter((task) => (task._lane ?? 0) < aggregationLane).filter((task) => !memberIds.has(String(task.id))).filter((task) => tasks_overlap(task, aggregateTask)).sort(compare_tasks_by_start_and_id);
+  }
   class Popup {
     // >>> SR: Independent aggregated popup renderer --------------------------
     constructor(parent, gantt) {
       this.parent = parent;
       this.gantt = gantt;
+      this.cleanup_callbacks = [];
+      this.mount_callbacks = [];
       this.make();
     }
     // <<< SR: Independent aggregated popup renderer --------------------------
@@ -5334,6 +5375,8 @@ var Gantt = (function() {
       if (popupFunc === false) return;
       this.parent.style.pointerEvents = this.gantt.options.popup_on === "hover" && !this.gantt.is_popup_locked_by_click() ? "none" : "";
       this.actions.innerHTML = "";
+      const mountCallbacks = [];
+      this.mount_callbacks = mountCallbacks;
       let html = popupFunc({
         task,
         chart: this.gantt,
@@ -5346,6 +5389,20 @@ var Gantt = (function() {
         // >>> SR: Default task popup table --------------------------------
         render_default_popup: () => this.render_default_popup(task),
         render_default_aggregated_popup: () => this.render_default_aggregated_popup(task),
+        // >>> SR: Custom popup lifecycle ---------------------------------
+        on_mount: (callback) => {
+          if (typeof callback !== "function") {
+            throw new TypeError("Popup on_mount expects a function.");
+          }
+          mountCallbacks.push(callback);
+        },
+        on_cleanup: (callback) => {
+          if (typeof callback !== "function") {
+            throw new TypeError("Popup on_cleanup expects a function.");
+          }
+          this.cleanup_callbacks.push(callback);
+        },
+        // <<< SR: Custom popup lifecycle ---------------------------------
         // <<< SR: Default task popup table --------------------------------
         add_action: (html2, func) => {
           let action = this.gantt.create_el({
@@ -5368,6 +5425,11 @@ var Gantt = (function() {
       }
       if (this.actions.innerHTML === "") this.actions.remove();
       else if (!this.actions.parentElement) this.parent.appendChild(this.actions);
+      if (mountCallbacks.length) {
+        this.parent.style.visibility = "hidden";
+        this.parent.classList.remove("hide");
+        mountCallbacks.forEach((callback) => callback());
+      }
       this.position_inside_viewport(x, y);
       this.parent.classList.remove("hide");
     }
@@ -5415,16 +5477,19 @@ var Gantt = (function() {
           append(this.build_aggregation_part(members));
         }
         if (popupGanttTarget) {
-          this.prepare_popup_for_nested_gantt_measurement();
-          this.render_aggregation_popup_gantt(
-            popupGanttTarget,
-            aggregationTasks
-          );
-          this.align_aggregation_popup_rows(popupGanttListContent);
-          this.bind_popup_gantt_alignment_refresh(
-            popupGanttTarget,
-            popupGanttListContent
-          );
+          this.mount_callbacks.push(() => {
+            if (!this.parent.contains(popupGanttTarget)) return;
+            this.prepare_popup_for_nested_gantt_measurement();
+            this.render_aggregation_popup_gantt(
+              popupGanttTarget,
+              aggregationTasks
+            );
+            this.align_aggregation_popup_rows(popupGanttListContent);
+            this.bind_popup_gantt_alignment_refresh(
+              popupGanttTarget,
+              popupGanttListContent
+            );
+          });
         }
       }
     }
@@ -5503,6 +5568,9 @@ var Gantt = (function() {
     }
     // <<< SR: Viewport popup placement ----------------------------------------
     hide() {
+      const callbacks = this.cleanup_callbacks;
+      this.cleanup_callbacks = [];
+      callbacks.forEach((callback) => callback());
       this.destroy_popup_gantt?.();
       this.parent.classList.add("hide");
     }
@@ -5650,6 +5718,9 @@ var Gantt = (function() {
         readonly_progress: true,
         move_dependencies: false,
         popup: false,
+        // >>> SR: External popup requests ------------------------------------
+        on_popup_request: null,
+        // <<< SR: External popup requests ------------------------------------
         // >>> SR: Independent aggregated popup renderer ----------------------
         popup_aggregated: false,
         // <<< SR: Independent aggregated popup renderer ----------------------
@@ -5711,6 +5782,10 @@ var Gantt = (function() {
       const listTop = firstListRow.getBoundingClientRect().top;
       const offset2 = ganttTop - listTop;
       listContent.style.marginTop = `${offset2 + manualOffset}px`;
+      const correction = ganttTop + manualOffset - firstListRow.getBoundingClientRect().top;
+      if (correction) {
+        listContent.style.marginTop = `${offset2 + manualOffset + correction}px`;
+      }
     }
     /**
      * Re-aligns the left popup rows after the nested popup Gantt changes view.
@@ -6034,21 +6109,11 @@ var Gantt = (function() {
      * @param aggregateTask
      * @returns {T[]|*[]}
      */
+    // >>> SR: Popup-independent overlap lookup ---------------------------------
     get_overlapping_upper_row_tasks(aggregateTask) {
-      const aggregateStart = aggregateTask?._start;
-      const aggregateEnd = this.get_task_end(aggregateTask);
-      const aggregationLane = this.gantt.get_aggregation_lane_index ? this.gantt.get_aggregation_lane_index() : 1;
-      if (!aggregateStart || !aggregateEnd) return [];
-      const memberIds = new Set(
-        (aggregateTask._members || []).map((member) => String(member.id))
-      );
-      return (this.gantt.tasks || []).filter((task) => task && !task._hidden && !task._isAggregate).filter((task) => task._rowIndex === aggregateTask._rowIndex).filter((task) => (task._lane ?? 0) < aggregationLane).filter((task) => !memberIds.has(String(task.id))).filter((task) => this.tasks_overlap(task, aggregateTask)).sort((a, b) => {
-        if (+a._start !== +b._start) return +a._start - +b._start;
-        const aId = Number.isFinite(+a.id) ? +a.id : String(a.id);
-        const bId = Number.isFinite(+b.id) ? +b.id : String(b.id);
-        return aId > bId ? 1 : aId < bId ? -1 : 0;
-      });
+      return this.gantt.get_overlapping_upper_row_tasks(aggregateTask);
     }
+    // <<< SR: Popup-independent overlap lookup ---------------------------------
     /**
      * Checks if two tasks overlap in time. Used to find upper row tasks that are overlapping with the aggregate task.
      * 
@@ -6057,14 +6122,14 @@ var Gantt = (function() {
      * @returns {boolean}
      */
     tasks_overlap(a, b) {
-      const aEnd = this.get_task_end(a);
-      const bEnd = this.get_task_end(b);
-      if (!a?._start || !b?._start || !aEnd || !bEnd) return false;
-      return a._start < bEnd && b._start < aEnd;
+      return tasks_overlap(a, b);
     }
+    // >>> SR: Popup-independent overlap lookup ---------------------------------
+    /** Returns the shared end-date value for native rendering compatibility. */
     get_task_end(task) {
-      return task?.orig_end ?? task?._end ?? null;
+      return get_task_end(task);
     }
+    // <<< SR: Popup-independent overlap lookup ---------------------------------
     // <<< SR: upperRowTasks ---------------------------------------------------
     compute_duration(task) {
       if (task == null) return;
@@ -6353,6 +6418,9 @@ var Gantt = (function() {
     // Values: 'click' | 'hover'
     popup_on: "click",
     // <<< SR: Hover click popup -----------------------------------------------
+    // >>> SR: External popup requests ----------------------------------------
+    on_popup_request: null,
+    // <<< SR: External popup requests ----------------------------------------
     readonly_progress: false,
     readonly_dates: false,
     readonly: false,
@@ -6471,15 +6539,16 @@ var Gantt = (function() {
         append_to: this.$svg.parentElement
       });
       this.$container.appendChild(this.$svg);
-      this.$popup_wrapper = this.create_el({
-        classes: "popup-wrapper",
-        append_to: this.$container
-      });
       this._popup_locked_by_click = false;
       this._suppress_scroll_strategy = false;
       this._extending_infinite_padding = false;
     }
     setup_options(options) {
+      if (options?.on_popup_request != null && typeof options.on_popup_request !== "function") {
+        throw new TypeError(
+          "Riel Gantt on_popup_request must be a function, null, or undefined."
+        );
+      }
       this.original_options = options;
       if (options?.view_modes) {
         const requested_view_mode = options.view_mode;
@@ -6543,6 +6612,9 @@ var Gantt = (function() {
     }
     update_options(options) {
       this.setup_options({ ...this.original_options, ...options });
+      if (this.get_popup_mode() !== "native") {
+        this.remove_native_popup();
+      }
       this.change_view_mode(void 0, true);
     }
     setup_tasks(tasks) {
@@ -7810,7 +7882,7 @@ var Gantt = (function() {
       }
     }
     unselect_all() {
-      if (this.popup) this.popup.parent.classList.add("hide");
+      this.hide_popup();
       this.$container.querySelectorAll(".date-range-highlight").forEach((k) => k.classList.add("hide"));
     }
     view_is(modes) {
@@ -7832,6 +7904,65 @@ var Gantt = (function() {
         return bar.task.id === id;
       });
     }
+    // >>> SR: External popup requests ----------------------------------------
+    /**
+     * Resolves popup routing; global disable takes priority over the external hook.
+     * @returns {'disabled'|'external'|'native'}
+     */
+    get_popup_mode() {
+      if (this.options.popup === false) return "disabled";
+      return typeof this.options.on_popup_request === "function" ? "external" : "native";
+    }
+    /**
+     * Lazily creates native popup state, only for accepted native requests.
+     */
+    setup_native_popup() {
+      if (this.get_popup_mode() !== "native" || this.popup) return;
+      this.$popup_wrapper = this.create_el({
+        classes: "popup-wrapper",
+        append_to: this.$container
+      });
+      this.popup = new Popup(this.$popup_wrapper, this);
+    }
+    /**
+     * Cleans up native content and nested charts without touching application UI.
+     */
+    remove_native_popup() {
+      this.hide_popup();
+      this.$popup_wrapper?.remove();
+      delete this.popup;
+      delete this.$popup_wrapper;
+      this.unlock_popup_on_click();
+    }
+    /**
+     * Cancels delayed bar requests when bars are cleared or the chart is destroyed.
+     */
+    cancel_pending_popup_requests() {
+      this.bars?.forEach((bar) => {
+        clearTimeout(bar._popup_timeout);
+        bar._popup_timeout = null;
+      });
+    }
+    /**
+     * Returns same-row visible upper-lane overlaps as original task references.
+     * Works without native popups; excludes aggregate members, not self for normal tasks.
+     */
+    get_overlapping_upper_row_tasks(task) {
+      return get_overlapping_upper_row_tasks(this, task);
+    }
+    // <<< SR: External popup requests ----------------------------------------
+    // >>> SR: All same-row overlapping tasks ---------------------------------
+    /**
+     * Returns ordered original same-row overlaps across all lanes, including
+     * hidden aggregation members and the normal task itself for a nonempty interval.
+     * No native popup state is required; synthetic aggregate tasks are excluded.
+     * @param {object} task Normal or synthetic aggregate chart task to query.
+     * @returns {object[]} Original task references with application-defined fields.
+     */
+    get_overlapping_tasks(task) {
+      return get_overlapping_tasks(this, task);
+    }
+    // <<< SR: All same-row overlapping tasks ---------------------------------
     // >>> SR: Hover click popup -----------------------------------------------
     /**
      * Checks whether hover popups should support click pinning.
@@ -7843,13 +7974,13 @@ var Gantt = (function() {
      * Checks whether a hover popup is currently pinned by a bar click.
      */
     is_popup_locked_by_click() {
-      return this.is_hover_popup_enabled() && this._popup_locked_by_click;
+      return this.get_popup_mode() === "native" && this.is_hover_popup_enabled() && this._popup_locked_by_click;
     }
     /**
      * Pins the current popup so hover leave events do not close it.
      */
     lock_popup_on_click() {
-      if (this.is_hover_popup_enabled()) {
+      if (this.get_popup_mode() === "native" && this.is_hover_popup_enabled()) {
         this._popup_locked_by_click = true;
       }
     }
@@ -7866,19 +7997,44 @@ var Gantt = (function() {
       return !!target?.closest?.(".bar-wrapper, .handle");
     }
     // <<< SR: Hover click popup -----------------------------------------------
+    // >>> SR: External popup requests ----------------------------------------
+    /**
+     * Requests an application popup or opens the native popup, exclusively.
+     * External callback return values are ignored; synchronous errors propagate.
+     * @param {object} opts Opening request.
+     * @param {object} opts.task Original chart task, including synthetic aggregates.
+     * @param {Element|null} [opts.target] Current task-bar anchor, resolved if omitted.
+     * @param {'click'|'hover'|'programmatic'} [opts.trigger='programmatic'] Request source.
+     * @param {MouseEvent|null} [opts.event=null] Originating event, if any.
+     * @param {number} [opts.x] Existing request x coordinate (not a viewport guarantee).
+     * @param {number} [opts.y] Existing request y coordinate (not a viewport guarantee).
+     * @description on_popup_request receives {task, chart, target, trigger, event, x, y}
+     * with this chart as `this`. It exposes no native DOM helpers and is not retained.
+     * For pointer client coordinates, use event.clientX and event.clientY.
+     */
     show_popup(opts) {
+      const mode = this.get_popup_mode();
+      if (mode === "disabled") return;
+      if (mode === "external") {
+        const target = opts.target === void 0 ? this.bars?.find((bar) => bar.task.id === opts.task.id)?.$bar ?? null : opts.target;
+        this.options.on_popup_request.call(this, {
+          task: opts.task,
+          chart: this,
+          target,
+          trigger: opts.trigger ?? "programmatic",
+          event: opts.event ?? null,
+          x: opts.x,
+          y: opts.y
+        });
+        return;
+      }
       const isAggregated = opts.task._isAggregate || !!opts.task._aggMembers?.length;
       const popupFunc = isAggregated ? this.options.popup_aggregated : this.options.popup;
       if (popupFunc === false) {
         this.hide_popup();
         return;
       }
-      if (!this.popup) {
-        this.popup = new Popup(
-          this.$popup_wrapper,
-          this
-        );
-      }
+      this.setup_native_popup();
       this.popup.show(opts);
     }
     hide_popup() {
@@ -7907,6 +8063,7 @@ var Gantt = (function() {
      * @memberof Gantt
      */
     clear() {
+      this.cancel_pending_popup_requests();
       this.$svg.innerHTML = "";
       this.$header?.remove?.();
       this.$side_header?.remove?.();
@@ -7921,6 +8078,8 @@ var Gantt = (function() {
      * popups, which are recreated whenever the popup content changes.
      */
     destroy() {
+      this.cancel_pending_popup_requests();
+      this.hide_popup();
       if (this._onDocumentMouseup) {
         document.removeEventListener("mouseup", this._onDocumentMouseup);
         this._onDocumentMouseup = null;
