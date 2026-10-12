@@ -1,4 +1,7 @@
 import date_utils from './date_utils';
+// >>> SR: Popup-independent overlap lookup -----------------------------------
+import { get_task_end, tasks_overlap } from './popup_tasks';
+// <<< SR: Popup-independent overlap lookup -----------------------------------
 export default class Popup {
     // >>> SR: Independent aggregated popup renderer --------------------------
     constructor(parent, gantt) {
@@ -477,6 +480,9 @@ export default class Popup {
         readonly_progress: true,
         move_dependencies: false,
         popup: false,
+        // >>> SR: External popup requests ------------------------------------
+        on_popup_request: null,
+        // <<< SR: External popup requests ------------------------------------
         // >>> SR: Independent aggregated popup renderer ----------------------
         popup_aggregated: false,
         // <<< SR: Independent aggregated popup renderer ----------------------
@@ -1003,37 +1009,11 @@ export default class Popup {
    * @param aggregateTask
    * @returns {T[]|*[]}
    */
+  // >>> SR: Popup-independent overlap lookup ---------------------------------
   get_overlapping_upper_row_tasks(aggregateTask) {
-      const aggregateStart = aggregateTask?._start;
-      const aggregateEnd = this.get_task_end(aggregateTask);
-      // >>> SR: Configurable row lanes ---------------------------------------
-      const aggregationLane = this.gantt.get_aggregation_lane_index
-          ? this.gantt.get_aggregation_lane_index()
-          : 1;
-      // <<< SR: Configurable row lanes ---------------------------------------
-
-      if (!aggregateStart || !aggregateEnd) return [];
-
-      const memberIds = new Set(
-          (aggregateTask._members || []).map((member) => String(member.id))
-      );
-
-      return (this.gantt.tasks || [])
-          .filter((task) => task && !task._hidden && !task._isAggregate)
-          .filter((task) => task._rowIndex === aggregateTask._rowIndex)
-          // >>> SR: Configurable row lanes -----------------------------------
-          .filter((task) => (task._lane ?? 0) < aggregationLane)
-          // <<< SR: Configurable row lanes -----------------------------------
-          .filter((task) => !memberIds.has(String(task.id)))
-          .filter((task) => this.tasks_overlap(task, aggregateTask))
-          .sort((a, b) => {
-            if (+a._start !== +b._start) return +a._start - +b._start;
-
-            const aId = Number.isFinite(+a.id) ? +a.id : String(a.id);
-            const bId = Number.isFinite(+b.id) ? +b.id : String(b.id);
-            return aId > bId ? 1 : aId < bId ? -1 : 0;
-          });
+      return this.gantt.get_overlapping_upper_row_tasks(aggregateTask);
     }
+  // <<< SR: Popup-independent overlap lookup ---------------------------------
 
   /**
    * Checks if two tasks overlap in time. Used to find upper row tasks that are overlapping with the aggregate task.
@@ -1043,17 +1023,17 @@ export default class Popup {
    * @returns {boolean}
    */
     tasks_overlap(a, b) {
-      const aEnd = this.get_task_end(a);
-      const bEnd = this.get_task_end(b);
-
-      if (!a?._start || !b?._start || !aEnd || !bEnd) return false;
-
-      return a._start < bEnd && b._start < aEnd;
+      // >>> SR: Popup-independent overlap lookup -------------------------------
+      return tasks_overlap(a, b);
+      // <<< SR: Popup-independent overlap lookup -------------------------------
     }
 
+    // >>> SR: Popup-independent overlap lookup ---------------------------------
+    /** Returns the shared end-date value for native rendering compatibility. */
     get_task_end(task) {
-      return task?.orig_end ?? task?._end ?? null;
+      return get_task_end(task);
     }
+    // <<< SR: Popup-independent overlap lookup ---------------------------------
     // <<< SR: upperRowTasks ---------------------------------------------------
     
     compute_duration(task) {

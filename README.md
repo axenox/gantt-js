@@ -128,10 +128,11 @@ Riel Gantt supports the standard Frappe Gantt task fields and adds row, priority
 | `lines` | `'both'` | Grid lines: `'none'`, `'vertical'`, `'horizontal'` or `'both'`.                                                                                                                                                                                  |
 | `move_dependencies` | `true` | Moves dependent tasks automatically when a task is moved.                                                                                                                                                                                        |
 | `padding` | `18` | Legacy padding around bars. With aggregation layouts, vertical spacing is mainly controlled by row and lane options.                                                                                                                             |
-| `popup` | `(ctx) => ctx.render_default_popup()` | Renderer for normal task popups; `false` disables only normal popups. See [Popup Configuration](#popup-configuration). |
+| `popup` | `(ctx) => ctx.render_default_popup()` | Native renderer for normal task popups; `false` globally disables native popups and external requests. See [Popup Configuration](#popup-configuration). |
 | `popup_aggregated` | `(ctx) => ctx.render_default_aggregated_popup()` | Independent renderer for aggregation popups; `false` disables only aggregation popups. |
+| `on_popup_request` | `null` | Function exclusively replacing all native task and aggregation popups with application-owned opening requests. Only function, `null`, or `undefined` are allowed. |
 | `popup_include_header` | `false` | Shows the `Start | - | End | [task columns] | Duration` header in the default task popup.                                                                                                                                        |
-| `popup_on` | `'click'` | Popup trigger: `'click'` or `'hover'`. In `hover` mode, hovering shows the popup and leaving the bar hides it; clicking a bar pins the popup until the user clicks outside a bar or clicks another bar.                                          |
+| `popup_on` | `'click'` | `'click'` or `'hover'`. Hover mode enables delayed hover and click requests. Native popups hide on mouseleave and pin on click; external closing and pinning belong to the application. |
 | `readonly_progress` | `false` | Disables progress editing.                                                                                                                                                                                                                       |
 | `readonly_dates` | `false` | Disables date editing.                                                                                                                                                                                                                           |
 | `readonly` | `false` | Disables all editing.                                                                                                                                                                                                                            |
@@ -300,7 +301,64 @@ Supported header helper tokens include `~weekRange` for week ranges and `~decade
 
 ## Popup Configuration
 
-<!-- >>> SR: Independent aggregated popup renderer -------------------------- -->
+<!-- >>> SR: External popup requests ---------------------------------------- -->
+### Application-owned popups
+
+Use `on_popup_request(ctx)` to build a popup entirely outside the library. Routing priority is:
+
+1. `popup: false` disables **all** popup opening, including the external hook.
+2. A function-valued `on_popup_request` exclusively handles normal and aggregate requests.
+3. Otherwise the native `popup` / `popup_aggregated` renderers remain active.
+
+External mode never creates a native `Popup`, `.popup-wrapper`, popup sections, or nested aggregation-popup Gantt. Neither native renderer is invoked. The hook runs once per accepted opening request with the chart as `this`. Its return value is ignored, including `false`, HTML strings, and promises; there is no native fallback or awaiting. Synchronous errors propagate. Invalid explicit non-function values throw `TypeError`, including when `popup: false` is set.
+
+```js
+
+const chart = new Gantt(element, tasks, {
+    popup_on: 'hover',
+    on_popup_request(ctx) {
+        externalPopup.open({
+            anchor: ctx.target,
+            task: ctx.task,
+            relatedTasks: ctx.chart.get_overlapping_upper_row_tasks(ctx.task),
+        });
+    },
+});
+```
+
+`externalPopup` is illustrative application code, not a library API or dependency. The application owns accessible markup, focus handling, positioning, closing, asynchronous rendering, and destruction. No external lifecycle/close adapter is provided. Mouseleave, grid/outside clicks, scrolling, `hide_popup()`, `clear()`, `refresh()`, and `destroy()` do not close application-owned UI or invoke this hook. Refresh, clear, and destroy cancel pending delayed requests.
+
+The external context has only these fields (native setters, actions, and mount/cleanup helpers remain exclusive to native renderer contexts):
+
+| Field | Contract |
+| --- | --- |
+| `task` | Original chart task reference, preserving application-defined fields; may be a synthetic aggregate task. Not cloned. |
+| `chart` | This Gantt instance. |
+| `target` | Actual task-bar DOM anchor from the event path. Programmatic calls resolve the current task bar once if omitted; `null` if unavailable. |
+| `trigger` | `'click'`, `'hover'`, or `'programmatic'`. The existing mouseup opening path reports `'click'`; the separate `on_click` event is unchanged. |
+| `event` | Originating `MouseEvent`, or `null` for requests without one. |
+| `x`, `y` | Existing library request coordinates, with their existing semantics; not a viewport-coordinate guarantee. Use `event.clientX` / `event.clientY` for pointer client coordinates. |
+
+`show_popup({ task, target, x, y })` defaults to `trigger: 'programmatic'` and `event: null`. An explicitly supplied target is preserved. The chart does not retain dispatched contexts, events, or anchors.
+
+`popup_on: 'hover'` enables **both** hover and click openings. The existing 200 ms hover delay and mouseleave cancellation are retained. External clicks never set the native hover-pin flag; the application decides how hover requests interact with its pinned UI.
+
+`update_options({ on_popup_request: callback })` removes any native popup and cleans up its nested Gantt before entering external mode. Switching back with `on_popup_request: null` or `undefined` creates nothing until the next native opening. `update_options({ popup: false })` removes native state and suppresses every request. Changing callbacks or modes never opens or closes application UI. Nested native popup charts explicitly use `on_popup_request: null` and `popup: false`.
+
+### Popup-independent overlap lookup
+
+`chart.get_overlapping_upper_row_tasks(task)` works before any popup has opened and with `popup: false`. It returns a new ordered array of original visible, non-aggregate task references in the same row and in lanes above the aggregation lane. It excludes IDs in the supplied aggregate's `_members`, compares IDs as strings for exclusion, uses `orig_end` before `_end`, and requires strict temporal overlap (touching endpoints do not overlap). Sorting remains start date then numeric/string ID using the existing comparator.
+
+A normal upper-lane task may include itself. This is **not** a complete aggregate-members query: synthetic `_members` contain partial records, not necessarily all application-defined task fields. Tasks are neither mutated nor cloned. The legacy `Popup.get_overlapping_upper_row_tasks(task)` delegates to this same implementation.
+
+For **all** temporal overlaps, use `chart.get_overlapping_tasks(task)`. It searches original tasks in the same logical row across every lane, including hidden aggregation members. It returns original task references with application-defined fields such as `dataRow`, not partial `_members` records. Synthetic aggregate bars are excluded from the result. A normal task with a nonempty interval includes itself.
+
+This method uses the same strict temporal overlap, `orig_end` before `_end`, and start-date/ID ordering as the upper-lane query. Touching endpoints are not overlaps. It does not exclude aggregate member IDs, mutate tasks, initialize popups, or require popups to be enabled. Missing dates return an empty array. Queries for aggregate bars use the aggregate's time interval; this remains a temporal-overlap query rather than an exact-membership query.
+
+`get_overlapping_upper_row_tasks()` retains its existing narrower behavior. Use it when only visible upper-lane tasks are needed.
+
+### Native content renderers
+
 `popup` renders normal tasks. `popup_aggregated` renders aggregation bars (and tasks carrying aggregation members). Only the matching callback is invoked; custom aggregation content is never followed by an automatically appended member list.
 
 Both defaults can be configured explicitly:
@@ -312,10 +370,9 @@ popup_aggregated: (ctx) => ctx.render_default_aggregated_popup(),
 
 The normal template renders the title, description, dates, task columns and duration using the built-in table and existing styles. The aggregation template preserves the list/table layout and optional mini Gantt, including row alignment and cleanup. Existing `popup_include_header` and `popup_aggregate_*` options still configure their respective templates.
 
-Setting either option to `false` disables only that popup type. To disable all popups, set **both** to `false`. Previously, `popup: false` disabled both types, and a custom `popup` callback also controlled the aggregation heading; move such aggregation customizations to `popup_aggregated`.
+`popup: false` is the global disable switch. `popup_aggregated: false` disables only native aggregation popups; it does not suppress external requests. To suppress only native normal popups while retaining aggregation popups, use `popup: () => false`. This restores global-disable priority compared with versions where `popup: false` disabled only normal popups. Aggregation content customizations belong in `popup_aggregated`.
 
 Both callbacks receive the context below and share the same return-value contract. If a callback returns:
-<!-- <<< SR: Independent aggregated popup renderer -------------------------- -->
 
 -   `false`, no popup is shown.
 -   `undefined`, the popup is rendered by mutating the supplied popup context.
@@ -347,9 +404,9 @@ Context properties:
 | `on_cleanup(callback)` | Registers resource cleanup when the popup closes, is replaced or the chart is destroyed. Each registered callback runs once. |
 | `add_action` | Adds an action button. Signature: `(html, callback)`. |
 
-<!-- >>> SR: Custom popup lifecycle ----------------------------------------- -->
+
 Custom renderers can use `ctx.on_mount(callback)` to initialize embedded components that need container measurements. During mounting the popup participates in layout but remains hidden until final placement. Use `ctx.on_cleanup(callback)` to dispose embedded charts, observers or listeners. Cleanup also runs for callbacks returning `false`; their mount callbacks do not run. Both hooks require a function. Built-in aggregation previews use the same mount phase so row alignment is measured after popup sections are finalized, including removal of empty action sections.
-<!-- <<< SR: Custom popup lifecycle ----------------------------------------- -->
+
 
 The popup is positioned next to the pointer when possible. It prefers the right side, then the left side. If neither side has enough room, it is placed below the pointer and falls back above the pointer when the lower side would leave too little visible space. Popups use viewport positioning, so short Gantt charts do not clip them at the sticky header or scrollbar. Their final position is limited to the browser viewport; oversized aggregation popups become internally scrollable. Any horizontal or vertical Gantt scroll closes the open popup because its task may have moved away from the fixed viewport position.
 
@@ -400,9 +457,7 @@ Each object key defines an additional shared table column, and its value is show
 
 A column value can remain a string or use `{ text, color, textcolor }`. Styled values are rendered as rounded badges in normal task popups and table-style aggregation popups. `color` sets the badge background and `textcolor` sets its text color; both accept CSS color values.
 
-<!-- >>> SR: Background-aware popup column padding -------------------------- -->
 Only values with a background color receive horizontal badge padding (`3px 7px`). Values without a background, including objects with only `text` or `textcolor`, use `3px 0` so their text starts directly below the column header. Colored badges keep their left background edge aligned with the header.
-<!-- <<< SR: Background-aware popup column padding -------------------------- -->
 
 Set `popup_aggregate_include_header: true` to add the header `Start | - | End | Title | ... | Duration`. The `...` positions use the keys from task `columns`. With `popup_aggregate_expand_tasks: true`, the table header occupies the same vertical header area as the nested Gantt so task rows remain horizontally aligned.
 
@@ -466,6 +521,11 @@ new Gantt('#gantt', tasks, {
 | `scroll_current(animate = true, trigger_today_missing = false)` | Scrolls to today if it is inside the rendered interval. |
 | `update_task(task_id, new_details)` | Updates and re-renders one task bar. |
 | `refresh(tasks, scroll_after_refresh = false)` | Replaces tasks and re-renders the chart. By default it preserves the current horizontal scroll position. |
+| `show_popup({ task, target, x, y, trigger, event })` | Requests a popup according to global disable / external / native routing. Missing trigger and event default to `'programmatic'` and `null`. |
+| `hide_popup()` | Hides native popup content only; never closes application-owned UI. |
+| `get_overlapping_upper_row_tasks(task)` | Returns ordered original same-row upper-lane overlaps without native popup state. Not an aggregate-members query. |
+| `get_overlapping_tasks(task)` | Returns all original same-row temporal overlaps across lanes, including hidden aggregation members and self for a nonempty normal task interval; excludes synthetic aggregate bars. |
+| `clear()` / `destroy()` | Cancel delayed openings and clear chart DOM / remove chart listeners and container. Application popup lifecycle remains independent. |
 
 ## Development Setup
 

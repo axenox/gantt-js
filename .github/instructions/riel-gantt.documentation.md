@@ -1,5 +1,31 @@
 # New Features
 
+<!-- >>> SR: All same-row overlapping tasks --------------------------------- -->
+## All original same-row overlapping tasks
+
+`chart.get_overlapping_tasks(task)` returns original task references in the same logical row that strictly overlap the supplied task's interval. It includes all lanes and hidden aggregation members, so application-defined fields such as `dataRow` remain available. Synthetic aggregate bars are excluded from results. A normal task with a nonempty interval includes itself; an aggregate query returns the original tasks overlapping its interval, not an exact membership selection.
+
+The method is independent of native Popup state and works before any opening and with `popup: false`. It reuses strict overlap/end-date helpers and the extracted existing start-date/ID comparator in `src/popup_tasks.js`. Touching endpoints do not overlap, `orig_end` takes precedence over `_end`, missing dates yield an empty array, and input tasks are neither mutated nor cloned.
+
+The existing `get_overlapping_upper_row_tasks()` behavior remains unchanged, including visible upper-lane filtering and aggregate-member exclusion. Browser acceptance scenarios cover both queries, all-lane filtering, hidden members, normal self-inclusion, original object identity, and disabled popup support.
+<!-- <<< SR: All same-row overlapping tasks --------------------------------- -->
+
+<!-- >>> SR: External popup requests ---------------------------------------- -->
+## Framework-independent external popup requests
+
+`on_popup_request: null` is an optional opening-only integration point. A function receives `{ task, chart, target, trigger, event, x, y }` with the chart as `this`. Task references and application fields are preserved, including synthetic aggregate tasks. Interactive anchors are the actual bar DOM elements; programmatic requests resolve a missing anchor once or supply `null`. Missing trigger/event default to `'programmatic'`/`null`. Existing x/y request semantics are unchanged; pointer client coordinates remain available on the event.
+
+`popup: false` globally suppresses both native and external openings. Otherwise a function hook exclusively replaces every normal and aggregation popup: no native Popup instance, wrapper, sections, renderer, or nested popup chart is created. Return values (including false, HTML, and promises) never enable native fallback, and synchronous errors propagate. Configuration accepts only functions, null, and undefined; other values throw TypeError before option updates are applied.
+
+Native DOM is initialized lazily. Updating native mode to external or disabled hides and cleans up native content/nested charts, removes its wrapper and instance, and resets native click pinning. Returning to native mode remains lazy. Nested native charts explicitly disable both popups and the external hook.
+
+Hover retains its 200 ms delay, mouseleave cancellation, and click opening path. External clicks do not pin native state. Refresh, clear, and destroy cancel pending delayed requests. Application-owned UI is never closed or destroyed by chart mouseleave, outside/grid clicks, scrolling, hide, refresh, clear, option changes, or destruction. Accessible UI, focus, placement, asynchronous rendering, and lifecycle belong to the application; native DOM helpers are not part of this request context.
+
+`chart.get_overlapping_upper_row_tasks(task)` shares the original native algorithm via `src/popup_tasks.js`, independently of Popup initialization or popup disable. It preserves same-row visible upper-lane filtering, string member-ID exclusion, orig_end precedence, strict overlap, original task references, and the existing start/ID comparator. A normal upper-lane task may include itself. This is not a complete aggregate-members selection API; synthetic `_members` remain partial records. Popup's compatibility methods delegate to the shared implementation.
+
+See the README for routing priority, the context table, public methods, and a framework-neutral usage example.
+<!-- <<< SR: External popup requests ---------------------------------------- -->
+
 <!-- >>> SR: Content-sized default task popup ------------------------------------------ -->
 ## Content-sized normal task popups
 

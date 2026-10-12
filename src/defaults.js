@@ -352,6 +352,9 @@ const DEFAULT_OPTIONS = {
     // Values: 'click' | 'hover'
     popup_on: 'click',
     // <<< SR: Hover click popup -----------------------------------------------
+    // >>> SR: External popup requests ----------------------------------------
+    on_popup_request: null,
+    // <<< SR: External popup requests ----------------------------------------
     readonly_progress: false,
     readonly_dates: false,
     readonly: false,
