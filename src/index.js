@@ -4,10 +4,32 @@ import { $, createSVG } from './svg_utils';
 import Arrow from './arrow';
 import Bar from './bar';
 import Popup from './popup';
+// >>> SR: Popup-independent overlap lookup -----------------------------------
+import {
+    get_overlapping_upper_row_tasks,
+    // >>> SR: All same-row overlapping tasks ---------------------------------
+    get_overlapping_tasks,
+    // <<< SR: All same-row overlapping tasks ---------------------------------
+} from './popup_tasks';
+// <<< SR: Popup-independent overlap lookup -----------------------------------
 
 import { DEFAULT_OPTIONS, DEFAULT_VIEW_MODES, normalizeViewModes } from './defaults';
 
 import './styles/gantt.css';
+
+// >>> SR: External popup requests --------------------------------------------
+/**
+ * Lightweight opening request for application-owned UI; no native DOM helpers.
+ * @typedef {object} PopupRequestContext
+ * @property {object} task Original chart task reference, including synthetic aggregates.
+ * @property {Gantt} chart The requesting chart (also the callback's `this`).
+ * @property {Element|null} target Actual task-bar anchor, or null when unavailable.
+ * @property {'click'|'hover'|'programmatic'} trigger Opening source.
+ * @property {MouseEvent|null} event Originating pointer event; null without an event.
+ * @property {number|undefined} x Existing library x coordinate, not a viewport guarantee.
+ * @property {number|undefined} y Existing library y coordinate, not a viewport guarantee.
+ */
+// <<< SR: External popup requests --------------------------------------------
 
 export default class Gantt {
     constructor(wrapper, tasks, options) {
@@ -65,10 +87,6 @@ export default class Gantt {
         });
 
         this.$container.appendChild(this.$svg);
-        this.$popup_wrapper = this.create_el({
-            classes: 'popup-wrapper',
-            append_to: this.$container,
-        });
 
         // >>> SR: Hover click popup -------------------------------------------
         this._popup_locked_by_click = false;
@@ -87,6 +105,16 @@ export default class Gantt {
     }
 
     setup_options(options) {
+        // >>> SR: External popup requests ------------------------------------
+        if (
+            options?.on_popup_request != null &&
+            typeof options.on_popup_request !== 'function'
+        ) {
+            throw new TypeError(
+                'Riel Gantt on_popup_request must be a function, null, or undefined.',
+            );
+        }
+        // <<< SR: External popup requests ------------------------------------
         this.original_options = options;
         if (options?.view_modes) {
             // >>> SR: Respect configured initial view mode --------------------
@@ -181,6 +209,11 @@ export default class Gantt {
 
     update_options(options) {
         this.setup_options({ ...this.original_options, ...options });
+        // >>> SR: External popup requests ------------------------------------
+        if (this.get_popup_mode() !== 'native') {
+            this.remove_native_popup();
+        }
+        // <<< SR: External popup requests ------------------------------------
         this.change_view_mode(undefined, true);
     }
 
@@ -1922,7 +1955,9 @@ export default class Gantt {
     }
 
     unselect_all() {
-        if (this.popup) this.popup.parent.classList.add('hide');
+        // >>> SR: Custom popup lifecycle -------------------------------------
+        this.hide_popup();
+        // <<< SR: Custom popup lifecycle -------------------------------------
         this.$container
             .querySelectorAll('.date-range-highlight')
             .forEach((k) => k.classList.add('hide'));
@@ -1951,6 +1986,73 @@ export default class Gantt {
             return bar.task.id === id;
         });
     }
+    
+    // >>> SR: External popup requests ----------------------------------------
+    /**
+     * Resolves popup routing; global disable takes priority over the external hook.
+     * @returns {'disabled'|'external'|'native'}
+     */
+    get_popup_mode() {
+        if (this.options.popup === false) return 'disabled';
+        return typeof this.options.on_popup_request === 'function'
+            ? 'external'
+            : 'native';
+    }
+
+    /**
+     * Lazily creates native popup state, only for accepted native requests.
+     */
+    setup_native_popup() {
+        if (this.get_popup_mode() !== 'native' || this.popup) return;
+        this.$popup_wrapper = this.create_el({
+            classes: 'popup-wrapper',
+            append_to: this.$container,
+        });
+        this.popup = new Popup(this.$popup_wrapper, this);
+    }
+
+    /**
+     * Cleans up native content and nested charts without touching application UI.
+     */
+    remove_native_popup() {
+        this.hide_popup();
+        this.$popup_wrapper?.remove();
+        delete this.popup;
+        delete this.$popup_wrapper;
+        this.unlock_popup_on_click();
+    }
+
+    /**
+     * Cancels delayed bar requests when bars are cleared or the chart is destroyed.
+     */
+    cancel_pending_popup_requests() {
+        this.bars?.forEach((bar) => {
+            clearTimeout(bar._popup_timeout);
+            bar._popup_timeout = null;
+        });
+    }
+
+    /**
+     * Returns same-row visible upper-lane overlaps as original task references.
+     * Works without native popups; excludes aggregate members, not self for normal tasks.
+     */
+    get_overlapping_upper_row_tasks(task) {
+        return get_overlapping_upper_row_tasks(this, task);
+    }
+    // <<< SR: External popup requests ----------------------------------------
+  
+    // >>> SR: All same-row overlapping tasks ---------------------------------
+    /**
+     * Returns ordered original same-row overlaps across all lanes, including
+     * hidden aggregation members and the normal task itself for a nonempty interval.
+     * No native popup state is required; synthetic aggregate tasks are excluded.
+     * @param {object} task Normal or synthetic aggregate chart task to query.
+     * @returns {object[]} Original task references with application-defined fields.
+     */
+    get_overlapping_tasks(task) {
+        return get_overlapping_tasks(this, task);
+    }
+    // <<< SR: All same-row overlapping tasks ---------------------------------
 
     // >>> SR: Hover click popup -----------------------------------------------
     /**
@@ -1964,16 +2066,24 @@ export default class Gantt {
      * Checks whether a hover popup is currently pinned by a bar click.
      */
     is_popup_locked_by_click() {
-        return this.is_hover_popup_enabled() && this._popup_locked_by_click;
+        // >>> SR: External popup requests ------------------------------------
+        return (
+            this.get_popup_mode() === 'native' &&
+            this.is_hover_popup_enabled() &&
+            this._popup_locked_by_click
+        );
+        // <<< SR: External popup requests ------------------------------------
     }
 
     /**
      * Pins the current popup so hover leave events do not close it.
      */
     lock_popup_on_click() {
-        if (this.is_hover_popup_enabled()) {
+        // >>> SR: External popup requests ------------------------------------
+        if (this.get_popup_mode() === 'native' && this.is_hover_popup_enabled()) {
             this._popup_locked_by_click = true;
         }
+        // <<< SR: External popup requests ------------------------------------
     }
 
     /**
@@ -1991,16 +2101,56 @@ export default class Gantt {
     }
     // <<< SR: Hover click popup -----------------------------------------------
 
+    // >>> SR: External popup requests ----------------------------------------
+    /**
+     * Requests an application popup or opens the native popup, exclusively.
+     * External callback return values are ignored; synchronous errors propagate.
+     * @param {object} opts Opening request.
+     * @param {object} opts.task Original chart task, including synthetic aggregates.
+     * @param {Element|null} [opts.target] Current task-bar anchor, resolved if omitted.
+     * @param {'click'|'hover'|'programmatic'} [opts.trigger='programmatic'] Request source.
+     * @param {MouseEvent|null} [opts.event=null] Originating event, if any.
+     * @param {number} [opts.x] Existing request x coordinate (not a viewport guarantee).
+     * @param {number} [opts.y] Existing request y coordinate (not a viewport guarantee).
+     * @description on_popup_request receives {task, chart, target, trigger, event, x, y}
+     * with this chart as `this`. It exposes no native DOM helpers and is not retained.
+     * For pointer client coordinates, use event.clientX and event.clientY.
+     */
     show_popup(opts) {
-        if (this.options.popup === false) return;
-        if (!this.popup) {
-            this.popup = new Popup(
-                this.$popup_wrapper,
-                this.options.popup,
-                this,
-            );
+        const mode = this.get_popup_mode();
+        if (mode === 'disabled') return;
+        if (mode === 'external') {
+            const target =
+                opts.target === undefined
+                    ? this.bars?.find((bar) => bar.task.id === opts.task.id)
+                          ?.$bar ?? null
+                    : opts.target;
+            this.options.on_popup_request.call(this, {
+                task: opts.task,
+                chart: this,
+                target,
+                trigger: opts.trigger ?? 'programmatic',
+                event: opts.event ?? null,
+                x: opts.x,
+                y: opts.y,
+            });
+            return;
         }
+        // <<< SR: External popup requests ------------------------------------
+        // >>> SR: Independent aggregated popup renderer ----------------------
+        const isAggregated = opts.task._isAggregate || !!opts.task._aggMembers?.length;
+        const popupFunc = isAggregated
+            ? this.options.popup_aggregated
+            : this.options.popup;
+        if (popupFunc === false) {
+            this.hide_popup();
+            return;
+        }
+        // >>> SR: External popup requests ------------------------------------
+        this.setup_native_popup();
+        // <<< SR: External popup requests ------------------------------------
         this.popup.show(opts);
+        // <<< SR: Independent aggregated popup renderer ----------------------
     }
 
     hide_popup() {
@@ -2034,6 +2184,9 @@ export default class Gantt {
      * @memberof Gantt
      */
     clear() {
+        // >>> SR: External popup requests ------------------------------------
+        this.cancel_pending_popup_requests();
+        // <<< SR: External popup requests ------------------------------------
         this.$svg.innerHTML = '';
         this.$header?.remove?.();
         this.$side_header?.remove?.();
@@ -2049,6 +2202,12 @@ export default class Gantt {
      * popups, which are recreated whenever the popup content changes.
      */
     destroy() {
+        // >>> SR: External popup requests ------------------------------------
+        this.cancel_pending_popup_requests();
+        // <<< SR: External popup requests ------------------------------------
+        // >>> SR: Custom popup lifecycle -------------------------------------
+        this.hide_popup();
+        // <<< SR: Custom popup lifecycle -------------------------------------
         if (this._onDocumentMouseup) {
             document.removeEventListener('mouseup', this._onDocumentMouseup);
             this._onDocumentMouseup = null;
@@ -2668,6 +2827,9 @@ export default class Gantt {
                 // >>> SR: Priority aggregation top lane ----------------------
                 priority: m.priority,
                 // <<< SR: Priority aggregation top lane ----------------------
+                // >>> SR: Task columns in aggregation table -------------------
+                columns: m.columns,
+                // <<< SR: Task columns in aggregation table -------------------
                 actual_duration: m.actual_duration, //TODO SR: It is undefined here because it is only set under "bar.compute_duration()".
                 ignored_duration: m.ignored_duration //TODO SR: It is undefined here because it is only set under "bar.compute_duration()".
               })),

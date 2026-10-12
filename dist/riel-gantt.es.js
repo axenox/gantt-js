@@ -5305,12 +5305,13 @@ class Bar {
   // <<< SR: Bar Aggregation -------------------------------------------------
 }
 class Popup {
-  constructor(parent, popup_func, gantt) {
+  // >>> SR: Independent aggregated popup renderer --------------------------
+  constructor(parent, gantt) {
     this.parent = parent;
-    this.popup_func = popup_func;
     this.gantt = gantt;
     this.make();
   }
+  // <<< SR: Independent aggregated popup renderer --------------------------
   make() {
     this.parent.innerHTML = `
             <div class="title"></div>
@@ -5325,9 +5326,13 @@ class Popup {
     this.actions = this.parent.querySelector(".actions");
   }
   show({ x, y, task, target }) {
+    this.make();
+    const isAggregated = task._isAggregate || !!task._aggMembers?.length;
+    const popupFunc = isAggregated ? this.gantt.options.popup_aggregated : this.gantt.options.popup;
+    if (popupFunc === false) return;
     this.parent.style.pointerEvents = this.gantt.options.popup_on === "hover" && !this.gantt.is_popup_locked_by_click() ? "none" : "";
     this.actions.innerHTML = "";
-    let html = this.popup_func({
+    let html = popupFunc({
       task,
       chart: this.gantt,
       get_title: () => this.title,
@@ -5336,6 +5341,10 @@ class Popup {
       set_subtitle: (subtitle) => this.subtitle.innerHTML = subtitle,
       get_details: () => this.details,
       set_details: (details) => this.details.innerHTML = details,
+      // >>> SR: Default task popup table --------------------------------
+      render_default_popup: () => this.render_default_popup(task),
+      render_default_aggregated_popup: () => this.render_default_aggregated_popup(task),
+      // <<< SR: Default task popup table --------------------------------
       add_action: (html2, func) => {
         let action = this.gantt.create_el({
           classes: "action-btn",
@@ -5347,14 +5356,32 @@ class Popup {
         action.onclick = (e) => func(task, this.gantt, e);
       }
     });
-    if (html === false) return;
-    if (html) this.parent.innerHTML = html;
+    if (html === false) {
+      this.hide();
+      return;
+    }
+    if (html) {
+      this.destroy_popup_gantt();
+      this.parent.innerHTML = html;
+    }
     if (this.actions.innerHTML === "") this.actions.remove();
-    else this.parent.appendChild(this.actions);
+    else if (!this.actions.parentElement) this.parent.appendChild(this.actions);
+    this.position_inside_viewport(x, y);
+    this.parent.classList.remove("hide");
+  }
+  // >>> SR: Independent aggregated popup renderer --------------------------
+  /**
+   * Renders the built-in aggregation list/table and optional nested Gantt,
+   * without invoking the normal task popup callback.
+   * @param task aggregation bar or task carrying aggregation members
+   */
+  render_default_aggregated_popup(task) {
     this.clear_aggregation_list();
+    this.title.textContent = task.name ?? "";
+    this.subtitle.textContent = task.description ?? "";
+    this.details.innerHTML = "";
     const members = task._isAggregate ? task._members || [] : task._aggMembers || [];
     if (members?.length) {
-      this.parent.querySelector(".details").innerHTML = "";
       let appendTarget = this.parent;
       let popupGanttTarget = null;
       let popupGanttListContent = null;
@@ -5398,8 +5425,30 @@ class Popup {
         );
       }
     }
-    this.position_inside_viewport(x, y);
-    this.parent.classList.remove("hide");
+  }
+  // <<< SR: Independent aggregated popup renderer --------------------------
+  // >>> SR: Default task popup table ---------------------------------------
+  /**
+   * Renders the standard task popup with its dates, custom columns and
+   * duration in the same tabular format used by aggregation popups.
+   *
+   * @param task task displayed by the popup
+   */
+  render_default_popup(task) {
+    this.title.textContent = task.name ?? "";
+    this.subtitle.textContent = task.description ?? "";
+    this.details.innerHTML = "";
+    this.details.appendChild(this.build_aggregation_table(
+      [task],
+      null,
+      {
+        className: "agg-table task-popup-table",
+        includeColor: false,
+        includeTitle: false,
+        includeHeader: this.gantt.options.popup_include_header === true,
+        includeDurationSpacer: true
+      }
+    ));
   }
   // >>> SR: Viewport popup placement ----------------------------------------
   /**
@@ -5599,6 +5648,9 @@ class Popup {
       readonly_progress: true,
       move_dependencies: false,
       popup: false,
+      // >>> SR: Independent aggregated popup renderer ----------------------
+      popup_aggregated: false,
+      // <<< SR: Independent aggregated popup renderer ----------------------
       stripe_rows: this.gantt.options.stripe_rows,
       holidays: null,
       //popup_on: 'click', //TODO SR: currently dont work.
@@ -5640,10 +5692,22 @@ class Popup {
       ".grid .grid-row"
     );
     if (!firstListRow || !firstGanttRow) return;
-    const listTop = firstListRow.getBoundingClientRect().top;
     const ganttTop = firstGanttRow.getBoundingClientRect().top;
+    const tableHeader = listContent.querySelector(".agg-table-header");
+    const manualOffset = 0;
+    if (tableHeader) {
+      tableHeader.style.height = "";
+      tableHeader.style.minHeight = "";
+      const listContentTop = listContent.getBoundingClientRect().top;
+      const availableHeaderHeight = Math.max(
+        0,
+        ganttTop + manualOffset - listContentTop
+      );
+      tableHeader.style.height = `${availableHeaderHeight}px`;
+      tableHeader.style.minHeight = `${availableHeaderHeight}px`;
+    }
+    const listTop = firstListRow.getBoundingClientRect().top;
     const offset2 = ganttTop - listTop;
-    const manualOffset = 3;
     listContent.style.marginTop = `${offset2 + manualOffset}px`;
   }
   /**
@@ -5683,16 +5747,118 @@ class Popup {
   }
   // <<< SR: Aggregation popup Gantt ----------------------------------------
   // >>> SR: Bar Aggregation ---------------------------------------------------
+  // >>> SR: Task columns in aggregation table --------------------------------
+  /**
+   * Collects additional table column names in their first occurrence order.
+   *
+   * @param members aggregation members displayed in the table
+   * @returns {string[]}
+   */
+  get_aggregation_column_keys(members) {
+    const columnKeys = /* @__PURE__ */ new Set();
+    members.forEach((member) => {
+      if (member.columns && typeof member.columns === "object" && !Array.isArray(member.columns)) {
+        Object.keys(member.columns).forEach((key) => columnKeys.add(key));
+      }
+    });
+    return Array.from(columnKeys);
+  }
+  // <<< SR: Task columns in aggregation table --------------------------------
+  // >>> SR: Styled popup column values ----------------------------------------
+  /**
+   * Renders a popup column value as plain text or as a styled badge when the
+   * value provides text, background color or text color properties.
+   *
+   * @param {HTMLTableCellElement} cell table cell receiving the value
+   * @param {*} value task column value
+   */
+  render_task_column_value(cell, value) {
+    const isStyledValue = value !== null && typeof value === "object" && !Array.isArray(value) && (Object.hasOwn(value, "text") || Object.hasOwn(value, "color") || Object.hasOwn(value, "textcolor"));
+    if (!isStyledValue) {
+      cell.textContent = value == null ? "" : String(value);
+      return;
+    }
+    const badge = document.createElement("span");
+    badge.className = "task-popup-column-value";
+    badge.textContent = value.text == null ? "" : String(value.text);
+    if (value.color != null) {
+      badge.style.backgroundColor = String(value.color);
+    }
+    if (badge.style.backgroundColor) {
+      badge.classList.add("task-popup-column-value-with-background");
+    }
+    if (value.textcolor != null) {
+      badge.style.color = String(value.textcolor);
+    }
+    cell.appendChild(badge);
+  }
+  // <<< SR: Styled popup column values ----------------------------------------
+  // >>> SR: Aggregation table header -----------------------------------------
+  /**
+   * Builds a table header for the standard and task-specific popup columns.
+   *
+   * @param {string[]} columnKeys additional task column names
+   * @param {object} options controls optional standard table columns
+   * @returns {HTMLTableSectionElement}
+   */
+  build_aggregation_table_header(columnKeys, options = {}) {
+    const {
+      includeColor = true,
+      includeTitle = true,
+      includeDurationSpacer = false
+    } = options;
+    const thead = document.createElement("thead");
+    const row = document.createElement("tr");
+    row.className = "agg-table-header";
+    const headers = [
+      ...includeColor ? [{ text: "", className: "agg-color-cell" }] : [],
+      { text: "Start", className: "agg-start-date" },
+      { text: "", className: "agg-interval-separator" },
+      { text: "End", className: "agg-end-date" },
+      ...includeTitle ? [{ text: "Title", className: "agg-title" }] : [],
+      ...columnKeys.map((key) => ({
+        text: key,
+        className: "agg-extra-column"
+      })),
+      ...includeDurationSpacer ? [{ text: "", className: "task-popup-duration-spacer" }] : [],
+      { text: "Duration", className: "agg-duration" }
+    ];
+    headers.forEach(({ text, className }) => {
+      const cell = document.createElement("th");
+      cell.className = className;
+      cell.scope = "col";
+      cell.textContent = text;
+      row.appendChild(cell);
+    });
+    thead.appendChild(row);
+    return thead;
+  }
+  // <<< SR: Aggregation table header -----------------------------------------
   /**
    * Builds the aggregation table for given aggregation members.
    * 
    * @param members
    * @param sectionStartIndex index where the member section starts after upper-row tasks
+   * @param {object} tableOptions controls optional columns and table classes
    * @returns {HTMLTableElement}
    */
-  build_aggregation_table(members, sectionStartIndex = null) {
+  build_aggregation_table(members, sectionStartIndex = null, tableOptions = {}) {
+    const {
+      className = "agg-table",
+      includeColor = true,
+      includeTitle = true,
+      includeDurationSpacer = false,
+      includeHeader = this.gantt.options.popup_aggregate_include_header === true
+    } = tableOptions;
     const table = document.createElement("table");
-    table.className = "agg-table";
+    table.className = className;
+    const columnKeys = this.get_aggregation_column_keys(members);
+    if (includeHeader) {
+      table.appendChild(this.build_aggregation_table_header(
+        columnKeys,
+        { includeColor, includeTitle, includeDurationSpacer }
+      ));
+    }
     const tbody = document.createElement("tbody");
     table.appendChild(tbody);
     members.forEach((m, index) => {
@@ -5704,15 +5870,17 @@ class Popup {
       if (sectionStartIndex != null && index === sectionStartIndex) {
         tr.classList.add("agg-section-start");
       }
-      const colorCell = document.createElement("td");
-      colorCell.className = "agg-color-cell";
-      const swatch = document.createElement("span");
-      swatch.className = "agg-color-swatch";
-      if (m.color) {
-        swatch.style.backgroundColor = String(m.color);
+      if (includeColor) {
+        const colorCell = document.createElement("td");
+        colorCell.className = "agg-color-cell";
+        const swatch = document.createElement("span");
+        swatch.className = "agg-color-swatch";
+        if (m.color) {
+          swatch.style.backgroundColor = String(m.color);
+        }
+        colorCell.appendChild(swatch);
+        tr.appendChild(colorCell);
       }
-      colorCell.appendChild(swatch);
-      tr.appendChild(colorCell);
       const originalTask = this.gantt.get_task ? this.gantt.get_task(m.id) : null;
       const hasRealStart = !!(originalTask && originalTask.start);
       const hasRealEnd = !!(originalTask && originalTask.end);
@@ -5752,11 +5920,26 @@ class Popup {
       endCell.className = "agg-end-date";
       endCell.textContent = endText;
       tr.appendChild(endCell);
-      const titleCell = document.createElement("td");
-      titleCell.className = "agg-title";
-      titleCell.textContent = labelText;
-      titleCell.title = labelText;
-      tr.appendChild(titleCell);
+      if (includeTitle) {
+        const titleCell = document.createElement("td");
+        titleCell.className = "agg-title";
+        titleCell.textContent = labelText;
+        titleCell.title = labelText;
+        tr.appendChild(titleCell);
+      }
+      columnKeys.forEach((columnKey) => {
+        const extraCell = document.createElement("td");
+        const value = m.columns?.[columnKey];
+        extraCell.className = "agg-extra-column";
+        extraCell.dataset.column = columnKey;
+        this.render_task_column_value(extraCell, value);
+        tr.appendChild(extraCell);
+      });
+      if (includeDurationSpacer) {
+        const durationSpacerCell = document.createElement("td");
+        durationSpacerCell.className = "task-popup-duration-spacer";
+        tr.appendChild(durationSpacerCell);
+      }
       const durationCell = document.createElement("td");
       durationCell.className = "agg-duration";
       durationCell.textContent = durationText;
@@ -5825,7 +6008,9 @@ class Popup {
   clear_aggregation_list() {
     this.destroy_popup_gantt();
     this.restore_popup_content_from_aggregation_layout();
-    this.parent.querySelectorAll(".agg-popup-expanded, .agg-list, .agg-table").forEach((list) => list.remove());
+    this.parent.querySelectorAll(
+      ".agg-popup-expanded, .agg-list, .agg-table:not(.task-popup-table)"
+    ).forEach((list) => list.remove());
   }
   /**
    * Moves title/subtitle/details/actions back to the popup root before an old
@@ -6151,39 +6336,17 @@ const DEFAULT_OPTIONS = {
   //TODO SR INFO: The padding here is the padding from the bar to the top and bottom edges of the line. 
   // With the new overlap logic, the padding no longer works. The logic from "Changed" version is still faulty and needs to be revised.
   padding: 18,
-  popup: (ctx) => {
-    ctx.set_title(ctx.task.name);
-    if (ctx.task.description) ctx.set_subtitle(ctx.task.description);
-    else ctx.set_subtitle("");
-    const start_date = date_utils.format(
-      ctx.task._start,
-      "MMM dd",
-      ctx.chart.options.language
-    );
-    const end_date = date_utils.format(
-      //date_utils.add(ctx.task._end, -1, 'second'),
-      date_utils.add(ctx.task.orig_end, -1, "second"),
-      "MMM dd",
-      ctx.chart.options.language
-    );
-    const hasRealStart = !!ctx.task.start;
-    const hasRealEnd = !!ctx.task.end || ctx.task.duration !== void 0;
-    if (hasRealStart || hasRealEnd) {
-      if (hasRealStart && hasRealEnd) {
-        ctx.set_details(
-          `${start_date} - ${end_date} (${ctx.task.actual_duration} days${ctx.task.ignored_duration ? " + " + ctx.task.ignored_duration + " excluded" : ""})<br/>Progress: ${Math.floor(ctx.task.progress * 100) / 100}%`
-        );
-      } else if (hasRealStart && !hasRealEnd) {
-        ctx.set_details(
-          `${start_date} - ... <br/>Progress: ${Math.floor(ctx.task.progress * 100) / 100}%`
-        );
-      } else if (hasRealEnd && !hasRealStart) {
-        ctx.set_details(
-          `... - ${end_date} <br/>Progress: ${Math.floor(ctx.task.progress * 100) / 100}%`
-        );
-      }
-    }
-  },
+  // >>> SR: Default task popup table ---------------------------------------
+  // The Popup class owns the default DOM renderer. A custom popup option
+  // replaces this callback and therefore remains authoritative.
+  popup: (ctx) => ctx.render_default_popup(),
+  // >>> SR: Independent aggregated popup renderer --------------------------
+  // Aggregation content is owned by this callback, not appended to popup.
+  popup_aggregated: (ctx) => ctx.render_default_aggregated_popup(),
+  // <<< SR: Independent aggregated popup renderer --------------------------
+  // Shows descriptive column headers in the default task popup.
+  popup_include_header: false,
+  // <<< SR: Default task popup table ---------------------------------------
   // >>> SR: Hover click popup -----------------------------------------------
   // Values: 'click' | 'hover'
   popup_on: "click",
@@ -6238,6 +6401,10 @@ const DEFAULT_OPTIONS = {
   // 'table' is @experimental
   // Values: 'list' | 'table'
   popup_aggregate_style: "list",
+  // >>> SR: Aggregation table header ---------------------------------------
+  // Shows descriptive column headers in table-style aggregation popups.
+  popup_aggregate_include_header: false,
+  // <<< SR: Aggregation table header ---------------------------------------
   // Includes tasks that are in the top lane of the row in the aggregate popup. 
   // Set false to only include tasks inside the aggregation block.
   // @experimental
@@ -7698,11 +7865,15 @@ class Gantt {
   }
   // <<< SR: Hover click popup -----------------------------------------------
   show_popup(opts) {
-    if (this.options.popup === false) return;
+    const isAggregated = opts.task._isAggregate || !!opts.task._aggMembers?.length;
+    const popupFunc = isAggregated ? this.options.popup_aggregated : this.options.popup;
+    if (popupFunc === false) {
+      this.hide_popup();
+      return;
+    }
     if (!this.popup) {
       this.popup = new Popup(
         this.$popup_wrapper,
-        this.options.popup,
         this
       );
     }
@@ -8198,6 +8369,9 @@ class Gantt {
               // >>> SR: Priority aggregation top lane ----------------------
               priority: m.priority,
               // <<< SR: Priority aggregation top lane ----------------------
+              // >>> SR: Task columns in aggregation table -------------------
+              columns: m.columns,
+              // <<< SR: Task columns in aggregation table -------------------
               actual_duration: m.actual_duration,
               //TODO SR: It is undefined here because it is only set under "bar.compute_duration()".
               ignored_duration: m.ignored_duration

@@ -1,12 +1,20 @@
 import date_utils from './date_utils';
+// >>> SR: Popup-independent overlap lookup -----------------------------------
+import { get_task_end, tasks_overlap } from './popup_tasks';
+// <<< SR: Popup-independent overlap lookup -----------------------------------
 export default class Popup {
-    constructor(parent, popup_func, gantt) {
+    // >>> SR: Independent aggregated popup renderer --------------------------
+    constructor(parent, gantt) {
         this.parent = parent;
-        this.popup_func = popup_func;
         this.gantt = gantt;
+        // >>> SR: Custom popup lifecycle -------------------------------------
+        this.cleanup_callbacks = [];
+        this.mount_callbacks = [];
+        // <<< SR: Custom popup lifecycle -------------------------------------
 
         this.make();
     }
+    // <<< SR: Independent aggregated popup renderer --------------------------
 
     make() {
         this.parent.innerHTML = `
@@ -24,6 +32,15 @@ export default class Popup {
     }
 
     show({ x, y, task, target }) {
+        // >>> SR: Independent aggregated popup renderer ----------------------
+        // Recreate section nodes after custom HTML or an expanded popup.
+        this.make();
+        const isAggregated = task._isAggregate || !!task._aggMembers?.length;
+        const popupFunc = isAggregated
+            ? this.gantt.options.popup_aggregated
+            : this.gantt.options.popup;
+        if (popupFunc === false) return;
+        // <<< SR: Independent aggregated popup renderer ----------------------
         // >>> SR: Stable hover popup ------------------------------------------
         // In hover mode the popup is only informational. If it captures the
         // pointer while it appears near the cursor, the bar receives mouseleave,
@@ -39,7 +56,12 @@ export default class Popup {
         // <<< SR: Hover click popup -------------------------------------------
         // <<< SR: Stable hover popup ------------------------------------------
         this.actions.innerHTML = '';
-        let html = this.popup_func({
+        // >>> SR: Custom popup lifecycle -------------------------------------
+        const mountCallbacks = [];
+        this.mount_callbacks = mountCallbacks;
+        // <<< SR: Custom popup lifecycle -------------------------------------
+        // >>> SR: Independent aggregated popup renderer ----------------------
+        let html = popupFunc({
             task,
             chart: this.gantt,
             get_title: () => this.title,
@@ -48,6 +70,25 @@ export default class Popup {
             set_subtitle: (subtitle) => (this.subtitle.innerHTML = subtitle),
             get_details: () => this.details,
             set_details: (details) => (this.details.innerHTML = details),
+            // >>> SR: Default task popup table --------------------------------
+            render_default_popup: () => this.render_default_popup(task),
+            render_default_aggregated_popup: () =>
+                this.render_default_aggregated_popup(task),
+            // >>> SR: Custom popup lifecycle ---------------------------------
+            on_mount: (callback) => {
+                if (typeof callback !== 'function') {
+                    throw new TypeError('Popup on_mount expects a function.');
+                }
+                mountCallbacks.push(callback);
+            },
+            on_cleanup: (callback) => {
+                if (typeof callback !== 'function') {
+                    throw new TypeError('Popup on_cleanup expects a function.');
+                }
+                this.cleanup_callbacks.push(callback);
+            },
+            // <<< SR: Custom popup lifecycle ---------------------------------
+            // <<< SR: Default task popup table --------------------------------
             add_action: (html, func) => {
                 let action = this.gantt.create_el({
                     classes: 'action-btn',
@@ -59,19 +100,46 @@ export default class Popup {
                 action.onclick = (e) => func(task, this.gantt, e);
             },
         });
-        if (html === false) return;
-        if (html) this.parent.innerHTML = html;
+        if (html === false) {
+            this.hide();
+            return;
+        }
+        if (html) {
+            this.destroy_popup_gantt();
+            this.parent.innerHTML = html;
+        }
 
         if (this.actions.innerHTML === '') this.actions.remove();
-        else this.parent.appendChild(this.actions);
+        else if (!this.actions.parentElement) this.parent.appendChild(this.actions);
+        // <<< SR: Independent aggregated popup renderer ----------------------
 
-        // >>> SR: Bar Aggregation ---------------------------------------------
+        // >>> SR: Custom popup lifecycle -------------------------------------
+        if (mountCallbacks.length) {
+            this.parent.style.visibility = 'hidden';
+            this.parent.classList.remove('hide');
+            mountCallbacks.forEach((callback) => callback());
+        }
+        // <<< SR: Custom popup lifecycle -------------------------------------
+        // >>> SR: Viewport popup placement ------------------------------------
+        this.position_inside_viewport(x, y);
+        // <<< SR: Viewport popup placement ------------------------------------
+        this.parent.classList.remove('hide');
+    }
+
+    // >>> SR: Independent aggregated popup renderer --------------------------
+    /**
+     * Renders the built-in aggregation list/table and optional nested Gantt,
+     * without invoking the normal task popup callback.
+     * @param task aggregation bar or task carrying aggregation members
+     */
+    render_default_aggregated_popup(task) {
         this.clear_aggregation_list();
+        this.title.textContent = task.name ?? '';
+        this.subtitle.textContent = task.description ?? '';
+        this.details.innerHTML = '';
         const members = task._isAggregate ? (task._members || []) : (task._aggMembers || []);
   
         if (members?.length) {
-          // clearing the details section of the aggregates bar because it is containing wrong date information.
-          this.parent.querySelector('.details').innerHTML = '';
           // >>> SR: upperRowTasks ---------------------------------------------
           //TODO SR: Work in progress: currently, the upper part looks exactly like the lower. Format the popup so the user can differentiate then visually.
           // >>> SR: Aggregation popup Gantt ----------------------------------
@@ -121,89 +189,119 @@ export default class Popup {
 
           // >>> SR: Aggregation popup Gantt ----------------------------------
           if (popupGanttTarget) {
-            // >>> SR: Popup Gantt initial window fill -------------------------
-            this.prepare_popup_for_nested_gantt_measurement();
-            // <<< SR: Popup Gantt initial window fill -------------------------
-            this.render_aggregation_popup_gantt(
-                popupGanttTarget,
-                aggregationTasks,
-            );
-            this.align_aggregation_popup_rows(popupGanttListContent);
-            // >>> SR: Aggregation popup row alignment -------------------------
-            this.bind_popup_gantt_alignment_refresh(
-                popupGanttTarget,
-                popupGanttListContent,
-            );
-            // <<< SR: Aggregation popup row alignment -------------------------
+            // >>> SR: Custom popup lifecycle ---------------------------------
+            // Measure only after empty action nodes have been removed.
+            this.mount_callbacks.push(() => {
+                // A returned HTML string may have replaced the default layout.
+                if (!this.parent.contains(popupGanttTarget)) return;
+                // >>> SR: Popup Gantt initial window fill ---------------------
+                this.prepare_popup_for_nested_gantt_measurement();
+                // <<< SR: Popup Gantt initial window fill ---------------------
+                this.render_aggregation_popup_gantt(
+                    popupGanttTarget,
+                    aggregationTasks,
+                );
+                this.align_aggregation_popup_rows(popupGanttListContent);
+                // >>> SR: Aggregation popup row alignment ---------------------
+                this.bind_popup_gantt_alignment_refresh(
+                    popupGanttTarget,
+                    popupGanttListContent,
+                );
+                // <<< SR: Aggregation popup row alignment ---------------------
+            });
+            // <<< SR: Custom popup lifecycle ---------------------------------
           }
           // <<< SR: Aggregation popup Gantt ----------------------------------
           // <<< SR: upperRowTasks ---------------------------------------------
         }
-        // <<< SR: Bar Aggregation ---------------------------------------------
-        // >>> SR: Viewport popup placement ------------------------------------
-        this.position_inside_viewport(x, y);
-        // <<< SR: Viewport popup placement ------------------------------------
-        this.parent.classList.remove('hide');
     }
+    // <<< SR: Independent aggregated popup renderer --------------------------
 
-    // >>> SR: Viewport popup placement ----------------------------------------
+    // >>> SR: Default task popup table ---------------------------------------
     /**
-     * Positions the popup beside the pointer in the browser viewport so the
-     * Gantt container's header, scrollbar and overflow cannot clip it.
+     * Renders the standard task popup with its dates, custom columns and
+     * duration in the same tabular format used by aggregation popups.
+     *
+     * @param task task displayed by the popup
      */
-    position_inside_viewport(x, y) {
-        const margin = 8;
-        const pointerGap = 10;
-        const viewportWidth = document.documentElement.clientWidth;
-        const viewportHeight = document.documentElement.clientHeight;
-        const availableWidth = Math.max(1, viewportWidth - margin * 2);
-        const availableHeight = Math.max(1, viewportHeight - margin * 2);
+    render_default_popup(task) {
+      this.title.textContent = task.name ?? '';
+      this.subtitle.textContent = task.description ?? '';
+      this.details.innerHTML = '';
+      this.details.appendChild(this.build_aggregation_table(
+          [task],
+          null,
+          {
+            className: 'agg-table task-popup-table',
+            includeColor: false,
+            includeTitle: false,
+            includeHeader: this.gantt.options.popup_include_header === true,
+            includeDurationSpacer: true,
+          },
+      ));
+    }
+    
+  // >>> SR: Viewport popup placement ----------------------------------------
+  /**
+   * Positions the popup beside the pointer in the browser viewport so the
+   * Gantt container's header, scrollbar and overflow cannot clip it.
+   */
+  position_inside_viewport(x, y) {
+    const margin = 8;
+    const pointerGap = 10;
+    const viewportWidth = document.documentElement.clientWidth;
+    const viewportHeight = document.documentElement.clientHeight;
+    const availableWidth = Math.max(1, viewportWidth - margin * 2);
+    const availableHeight = Math.max(1, viewportHeight - margin * 2);
 
-        this.parent.style.visibility = 'hidden';
-        this.parent.style.left = '0px';
-        this.parent.style.top = '0px';
-        this.parent.style.maxWidth = `${availableWidth}px`;
-        this.parent.style.maxHeight = `${availableHeight}px`;
-        this.parent.style.overflow = 'auto';
-        this.parent.classList.remove('hide');
+    this.parent.style.visibility = 'hidden';
+    this.parent.style.left = '0px';
+    this.parent.style.top = '0px';
+    this.parent.style.maxWidth = `${availableWidth}px`;
+    this.parent.style.maxHeight = `${availableHeight}px`;
+    this.parent.style.overflow = 'auto';
+    this.parent.classList.remove('hide');
 
-        const popupWidth = this.parent.offsetWidth;
-        const popupHeight = this.parent.offsetHeight;
+    const popupWidth = this.parent.offsetWidth;
+    const popupHeight = this.parent.offsetHeight;
 
-        const minLeft = margin;
-        const maxLeft = viewportWidth - popupWidth - margin;
-        const minTop = margin;
-        const maxTop = viewportHeight - popupHeight - margin;
+    const minLeft = margin;
+    const maxLeft = viewportWidth - popupWidth - margin;
+    const minTop = margin;
+    const maxTop = viewportHeight - popupHeight - margin;
 
-        const maxSafeLeft = Math.max(minLeft, maxLeft);
-        const maxSafeTop = Math.max(minTop, maxTop);
-        const rightLeft = x + pointerGap;
-        const leftLeft = x - popupWidth - pointerGap;
-        const canFitRight = rightLeft <= maxLeft;
-        const canFitLeft = leftLeft >= minLeft;
-        let desiredLeft;
-        let desiredTop;
-
-        if (canFitRight) {
-            desiredLeft = rightLeft;
-            desiredTop = y - pointerGap;
-        } else if (canFitLeft) {
-            desiredLeft = leftLeft;
-            desiredTop = y - pointerGap;
-        } else {
-            desiredLeft = x - popupWidth / 2;
-            const belowTop = y + pointerGap;
-            const aboveTop = y - popupHeight - pointerGap;
-            desiredTop = belowTop <= maxTop ? belowTop : aboveTop;
-        }
-
-        this.parent.style.left = Math.max(minLeft, Math.min(desiredLeft, maxSafeLeft)) + 'px';
-        this.parent.style.top = Math.max(minTop, Math.min(desiredTop, maxSafeTop)) + 'px';
+    const maxSafeLeft = Math.max(minLeft, maxLeft);
+    const maxSafeTop = Math.max(minTop, maxTop);
+    const rightLeft = x + pointerGap;
+    const leftLeft = x - popupWidth - pointerGap;
+    const canFitRight = rightLeft <= maxLeft;
+    const canFitLeft = leftLeft >= minLeft;
+    let desiredLeft;
+    let desiredTop;
+    if (canFitRight) {
+      desiredLeft = rightLeft;
+      desiredTop = y - pointerGap;
+    } else if (canFitLeft) {
+      desiredLeft = leftLeft;
+      desiredTop = y - pointerGap;
+    } else {
+      desiredLeft = x - popupWidth / 2;
+      const belowTop = y + pointerGap;
+      const aboveTop = y - popupHeight - pointerGap;
+      desiredTop = belowTop <= maxTop ? belowTop : aboveTop;
+    }
+    this.parent.style.left = Math.max(minLeft, Math.min(desiredLeft, maxSafeLeft)) + 'px';
+    this.parent.style.top = Math.max(minTop, Math.min(desiredTop, maxSafeTop)) + 'px';
         this.parent.style.visibility = '';
     }
     // <<< SR: Viewport popup placement ----------------------------------------
 
     hide() {
+        // >>> SR: Custom popup lifecycle -------------------------------------
+        const callbacks = this.cleanup_callbacks;
+        this.cleanup_callbacks = [];
+        callbacks.forEach((callback) => callback());
+        // <<< SR: Custom popup lifecycle -------------------------------------
         // >>> SR: Aggregation popup Gantt ------------------------------------
         this.destroy_popup_gantt?.();
         // <<< SR: Aggregation popup Gantt ------------------------------------
@@ -382,6 +480,12 @@ export default class Popup {
         readonly_progress: true,
         move_dependencies: false,
         popup: false,
+        // >>> SR: External popup requests ------------------------------------
+        on_popup_request: null,
+        // <<< SR: External popup requests ------------------------------------
+        // >>> SR: Independent aggregated popup renderer ----------------------
+        popup_aggregated: false,
+        // <<< SR: Independent aggregated popup renderer ----------------------
         stripe_rows: this.gantt.options.stripe_rows,
         holidays: null,
         //popup_on: 'click', //TODO SR: currently dont work.
@@ -432,12 +536,35 @@ export default class Popup {
 
       if (!firstListRow || !firstGanttRow) return;
 
-      const listTop = firstListRow.getBoundingClientRect().top;
       const ganttTop = firstGanttRow.getBoundingClientRect().top;
+      // >>> SR: Aggregation table header --------------------------------------
+      const tableHeader = listContent.querySelector('.agg-table-header');
+      const manualOffset = 0; //3
+
+      if (tableHeader) {
+        tableHeader.style.height = '';
+        tableHeader.style.minHeight = '';
+        const listContentTop = listContent.getBoundingClientRect().top;
+        const availableHeaderHeight = Math.max(
+            0,
+            ganttTop + manualOffset - listContentTop,
+        );
+        tableHeader.style.height = `${availableHeaderHeight}px`;
+        tableHeader.style.minHeight = `${availableHeaderHeight}px`;
+      }
+      // <<< SR: Aggregation table header --------------------------------------
+
+      const listTop = firstListRow.getBoundingClientRect().top;
       const offset = ganttTop - listTop;
 
-      const manualOffset = 3;
-      listContent.style.marginTop = `${offset + manualOffset}px`
+      // >>> SR: Custom popup lifecycle ---------------------------------------
+      listContent.style.marginTop = `${offset + manualOffset}px`;
+      // Account for title margins that collapse when list content is moved.
+      const correction = ganttTop + manualOffset - firstListRow.getBoundingClientRect().top;
+      if (correction) {
+        listContent.style.marginTop = `${offset + manualOffset + correction}px`;
+      }
+      // <<< SR: Custom popup lifecycle ---------------------------------------
       // <<< SR: Aggregation popup row alignment -------------------------------
     }
 
@@ -483,19 +610,160 @@ export default class Popup {
     // <<< SR: Aggregation popup Gantt ----------------------------------------
     
   // >>> SR: Bar Aggregation ---------------------------------------------------
+  // >>> SR: Task columns in aggregation table --------------------------------
+  /**
+   * Collects additional table column names in their first occurrence order.
+   *
+   * @param members aggregation members displayed in the table
+   * @returns {string[]}
+   */
+    get_aggregation_column_keys(members) {
+      const columnKeys = new Set();
+
+      members.forEach((member) => {
+        if (
+          member.columns &&
+          typeof member.columns === 'object' &&
+          !Array.isArray(member.columns)
+        ) {
+          Object.keys(member.columns).forEach((key) => columnKeys.add(key));
+        }
+      });
+
+      return Array.from(columnKeys);
+    }
+  // <<< SR: Task columns in aggregation table --------------------------------
+
+  // >>> SR: Styled popup column values ----------------------------------------
+  /**
+   * Renders a popup column value as plain text or as a styled badge when the
+   * value provides text, background color or text color properties.
+   *
+   * @param {HTMLTableCellElement} cell table cell receiving the value
+   * @param {*} value task column value
+   */
+    render_task_column_value(cell, value) {
+      const isStyledValue =
+        value !== null &&
+        typeof value === 'object' &&
+        !Array.isArray(value) &&
+        (
+          Object.hasOwn(value, 'text') ||
+          Object.hasOwn(value, 'color') ||
+          Object.hasOwn(value, 'textcolor')
+        );
+
+      if (!isStyledValue) {
+        cell.textContent = value == null ? '' : String(value);
+        return;
+      }
+
+      const badge = document.createElement('span');
+      badge.className = 'task-popup-column-value';
+      badge.textContent = value.text == null ? '' : String(value.text);
+
+      if (value.color != null) {
+        badge.style.backgroundColor = String(value.color);
+      }
+      // >>> SR: Background-aware popup column padding -----------------------
+      if (badge.style.backgroundColor) {
+        badge.classList.add('task-popup-column-value-with-background');
+      }
+      // <<< SR: Background-aware popup column padding -----------------------
+      if (value.textcolor != null) {
+        badge.style.color = String(value.textcolor);
+      }
+
+      cell.appendChild(badge);
+    }
+  // <<< SR: Styled popup column values ----------------------------------------
+
+  // >>> SR: Aggregation table header -----------------------------------------
+  /**
+   * Builds a table header for the standard and task-specific popup columns.
+   *
+   * @param {string[]} columnKeys additional task column names
+   * @param {object} options controls optional standard table columns
+   * @returns {HTMLTableSectionElement}
+   */
+    build_aggregation_table_header(columnKeys, options = {}) {
+      const {
+        includeColor = true,
+        includeTitle = true,
+        includeDurationSpacer = false,
+      } = options;
+      const thead = document.createElement('thead');
+      const row = document.createElement('tr');
+      row.className = 'agg-table-header';
+      const headers = [
+        ...(includeColor
+          ? [{ text: '', className: 'agg-color-cell' }]
+          : []),
+        { text: 'Start', className: 'agg-start-date' },
+        { text: '', className: 'agg-interval-separator' },
+        { text: 'End', className: 'agg-end-date' },
+        ...(includeTitle
+          ? [{ text: 'Title', className: 'agg-title' }]
+          : []),
+        ...columnKeys.map((key) => ({
+          text: key,
+          className: 'agg-extra-column',
+        })),
+        ...(includeDurationSpacer
+          ? [{ text: '', className: 'task-popup-duration-spacer' }]
+          : []),
+        { text: 'Duration', className: 'agg-duration' },
+      ];
+
+      headers.forEach(({ text, className }) => {
+        const cell = document.createElement('th');
+        cell.className = className;
+        cell.scope = 'col';
+        cell.textContent = text;
+        row.appendChild(cell);
+      });
+
+      thead.appendChild(row);
+      return thead;
+    }
+  // <<< SR: Aggregation table header -----------------------------------------
+
   /**
    * Builds the aggregation table for given aggregation members.
    * 
    * @param members
    * @param sectionStartIndex index where the member section starts after upper-row tasks
+   * @param {object} tableOptions controls optional columns and table classes
    * @returns {HTMLTableElement}
    */
-    build_aggregation_table(members, sectionStartIndex = null) {
-      
-      const table = document.createElement('table');
-      // >>> SR: Aggregation popup list/table styles --------------------------
-      table.className = 'agg-table';
-      // <<< SR: Aggregation popup list/table styles --------------------------
+    build_aggregation_table(
+      members,
+      sectionStartIndex = null,
+      tableOptions = {},
+    ) {
+    const {
+      className = 'agg-table',
+      includeColor = true,
+      includeTitle = true,
+      includeDurationSpacer = false,
+      includeHeader =
+        this.gantt.options.popup_aggregate_include_header === true,
+    } = tableOptions;
+    const table = document.createElement('table');
+    // >>> SR: Aggregation popup list/table styles --------------------------
+    table.className = className;
+    // <<< SR: Aggregation popup list/table styles --------------------------
+      // >>> SR: Task columns in aggregation table -----------------------------
+      const columnKeys = this.get_aggregation_column_keys(members);
+      // <<< SR: Task columns in aggregation table -----------------------------
+      // >>> SR: Aggregation table header --------------------------------------
+      if (includeHeader) {
+        table.appendChild(this.build_aggregation_table_header(
+            columnKeys,
+            { includeColor, includeTitle, includeDurationSpacer },
+        ));
+      }
+      // <<< SR: Aggregation table header --------------------------------------
       const tbody = document.createElement('tbody');
       table.appendChild(tbody);
       
@@ -524,16 +792,18 @@ export default class Popup {
         }
         // <<< SR: Tabular aggregation popup list ------------------------------
   
-        // Color-Swatch at the left
-        const colorCell = document.createElement('td');
-        colorCell.className = 'agg-color-cell';
-        const swatch = document.createElement('span');
-        swatch.className = 'agg-color-swatch';
-        if (m.color) {
-          swatch.style.backgroundColor = String(m.color);
+        if (includeColor) {
+          // Color-Swatch at the left
+          const colorCell = document.createElement('td');
+          colorCell.className = 'agg-color-cell';
+          const swatch = document.createElement('span');
+          swatch.className = 'agg-color-swatch';
+          if (m.color) {
+            swatch.style.backgroundColor = String(m.color);
+          }
+          colorCell.appendChild(swatch);
+          tr.appendChild(colorCell);
         }
-        colorCell.appendChild(swatch);
-        tr.appendChild(colorCell);
         
         // Getting the original task to know real start/end
         const originalTask = this.gantt.get_task ? this.gantt.get_task(m.id) : null;
@@ -585,13 +855,34 @@ export default class Popup {
         endCell.textContent = endText;
         tr.appendChild(endCell);
 
-        const titleCell = document.createElement('td');
-        titleCell.className = 'agg-title';
-        titleCell.textContent = labelText;
-        // >>> SR: Aggregation popup fixed row height --------------------------
-        titleCell.title = labelText;
-        // <<< SR: Aggregation popup fixed row height --------------------------
-        tr.appendChild(titleCell);
+        if (includeTitle) {
+          const titleCell = document.createElement('td');
+          titleCell.className = 'agg-title';
+          titleCell.textContent = labelText;
+          // >>> SR: Aggregation popup fixed row height ------------------------
+          titleCell.title = labelText;
+          // <<< SR: Aggregation popup fixed row height ------------------------
+          tr.appendChild(titleCell);
+        }
+
+        // >>> SR: Task columns in aggregation table ---------------------------
+        columnKeys.forEach((columnKey) => {
+          const extraCell = document.createElement('td');
+          const value = m.columns?.[columnKey];
+          extraCell.className = 'agg-extra-column';
+          extraCell.dataset.column = columnKey;
+          // >>> SR: Styled popup column values --------------------------------
+          this.render_task_column_value(extraCell, value);
+          // <<< SR: Styled popup column values --------------------------------
+          tr.appendChild(extraCell);
+        });
+        // <<< SR: Task columns in aggregation table ---------------------------
+
+        if (includeDurationSpacer) {
+          const durationSpacerCell = document.createElement('td');
+          durationSpacerCell.className = 'task-popup-duration-spacer';
+          tr.appendChild(durationSpacerCell);
+        }
 
         const durationCell = document.createElement('td');
         durationCell.className = 'agg-duration';
@@ -688,7 +979,9 @@ export default class Popup {
       this.destroy_popup_gantt();
       this.restore_popup_content_from_aggregation_layout();
       this.parent
-          .querySelectorAll('.agg-popup-expanded, .agg-list, .agg-table')
+          .querySelectorAll(
+              '.agg-popup-expanded, .agg-list, .agg-table:not(.task-popup-table)',
+          )
           .forEach((list) => list.remove());
       // <<< SR: Aggregation popup Gantt --------------------------------------
       // <<< SR: upperRowTasks -------------------------------------------------
@@ -716,37 +1009,11 @@ export default class Popup {
    * @param aggregateTask
    * @returns {T[]|*[]}
    */
+  // >>> SR: Popup-independent overlap lookup ---------------------------------
   get_overlapping_upper_row_tasks(aggregateTask) {
-      const aggregateStart = aggregateTask?._start;
-      const aggregateEnd = this.get_task_end(aggregateTask);
-      // >>> SR: Configurable row lanes ---------------------------------------
-      const aggregationLane = this.gantt.get_aggregation_lane_index
-          ? this.gantt.get_aggregation_lane_index()
-          : 1;
-      // <<< SR: Configurable row lanes ---------------------------------------
-
-      if (!aggregateStart || !aggregateEnd) return [];
-
-      const memberIds = new Set(
-          (aggregateTask._members || []).map((member) => String(member.id))
-      );
-
-      return (this.gantt.tasks || [])
-          .filter((task) => task && !task._hidden && !task._isAggregate)
-          .filter((task) => task._rowIndex === aggregateTask._rowIndex)
-          // >>> SR: Configurable row lanes -----------------------------------
-          .filter((task) => (task._lane ?? 0) < aggregationLane)
-          // <<< SR: Configurable row lanes -----------------------------------
-          .filter((task) => !memberIds.has(String(task.id)))
-          .filter((task) => this.tasks_overlap(task, aggregateTask))
-          .sort((a, b) => {
-            if (+a._start !== +b._start) return +a._start - +b._start;
-
-            const aId = Number.isFinite(+a.id) ? +a.id : String(a.id);
-            const bId = Number.isFinite(+b.id) ? +b.id : String(b.id);
-            return aId > bId ? 1 : aId < bId ? -1 : 0;
-          });
+      return this.gantt.get_overlapping_upper_row_tasks(aggregateTask);
     }
+  // <<< SR: Popup-independent overlap lookup ---------------------------------
 
   /**
    * Checks if two tasks overlap in time. Used to find upper row tasks that are overlapping with the aggregate task.
@@ -756,17 +1023,17 @@ export default class Popup {
    * @returns {boolean}
    */
     tasks_overlap(a, b) {
-      const aEnd = this.get_task_end(a);
-      const bEnd = this.get_task_end(b);
-
-      if (!a?._start || !b?._start || !aEnd || !bEnd) return false;
-
-      return a._start < bEnd && b._start < aEnd;
+      // >>> SR: Popup-independent overlap lookup -------------------------------
+      return tasks_overlap(a, b);
+      // <<< SR: Popup-independent overlap lookup -------------------------------
     }
 
+    // >>> SR: Popup-independent overlap lookup ---------------------------------
+    /** Returns the shared end-date value for native rendering compatibility. */
     get_task_end(task) {
-      return task?.orig_end ?? task?._end ?? null;
+      return get_task_end(task);
     }
+    // <<< SR: Popup-independent overlap lookup ---------------------------------
     // <<< SR: upperRowTasks ---------------------------------------------------
     
     compute_duration(task) {

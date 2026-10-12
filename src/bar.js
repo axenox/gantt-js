@@ -396,12 +396,19 @@ export default class Bar {
                     // <<< SR: Viewport popup placement -------------------------
                     task: this.task,
                     target: this.$bar,
+                    // >>> SR: External popup requests -------------------------
+                    event: e,
+                    trigger: 'click',
+                    // <<< SR: External popup requests -------------------------
                 });
             });
         }
-        let timeout;
+        // >>> SR: External popup requests -------------------------------------
         $.on(this.group, 'mouseenter', (e) => {
-            timeout = setTimeout(() => {
+            clearTimeout(this._popup_timeout);
+            this._popup_timeout = setTimeout(() => {
+                this._popup_timeout = null;
+                // <<< SR: External popup requests -----------------------------
                 // >>> SR: Hover click popup -----------------------------------
                 if (
                     this.gantt.options.popup_on === 'hover' &&
@@ -415,6 +422,10 @@ export default class Bar {
                         // <<< SR: Viewport popup placement ---------------------
                         task: this.task,
                         target: this.$bar,
+                        // >>> SR: External popup requests ---------------------
+                        event: e,
+                        trigger: 'hover',
+                        // <<< SR: External popup requests ---------------------
                     });
                 // >>> SR: Bar Aggregation -------------------------------------
                 //New: Added "CSS.escape" to escape special characters in task IDs
@@ -427,7 +438,10 @@ export default class Bar {
           }, 200);
         });
         $.on(this.group, 'mouseleave', () => {
-            clearTimeout(timeout);
+            // >>> SR: External popup requests ---------------------------------
+            clearTimeout(this._popup_timeout);
+            this._popup_timeout = null;
+            // <<< SR: External popup requests ---------------------------------
             // >>> SR: Hover click popup ---------------------------------------
             if (
                 this.gantt.options.popup_on === 'hover' &&

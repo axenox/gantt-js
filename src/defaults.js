@@ -337,53 +337,24 @@ const DEFAULT_OPTIONS = {
     //TODO SR INFO: The padding here is the padding from the bar to the top and bottom edges of the line. 
     // With the new overlap logic, the padding no longer works. The logic from "Changed" version is still faulty and needs to be revised.
     padding: 18,
-    popup: (ctx) => {
-        ctx.set_title(ctx.task.name);
-        if (ctx.task.description) ctx.set_subtitle(ctx.task.description);
-        else ctx.set_subtitle('');
-
-        const start_date = date_utils.format(
-            ctx.task._start,
-            'MMM dd',
-            ctx.chart.options.language,
-        );
-        const end_date = date_utils.format(
-            //date_utils.add(ctx.task._end, -1, 'second'),
-            date_utils.add(ctx.task.orig_end, -1, 'second'),
-            'MMM dd',
-            ctx.chart.options.language,
-        );
-
-        // >>> SR: Bar Aggregation ---------------------------------------------
-        // special treatment for tasks without start or end-date and duration
-        const hasRealStart = !!(ctx.task.start);
-        const hasRealEnd = (!!(ctx.task.end) || ctx.task.duration !== undefined);
-
-        if (hasRealStart || hasRealEnd) {
-          if (hasRealStart && hasRealEnd) {
-            ctx.set_details(
-                `${start_date} - ${end_date} (${ctx.task.actual_duration} days${ctx.task.ignored_duration ? ' + ' + ctx.task.ignored_duration + ' excluded' : ''})<br/>Progress: ${Math.floor(ctx.task.progress * 100) / 100}%`,
-            );
-          } else if (hasRealStart && !hasRealEnd) {
-            ctx.set_details(
-                `${start_date} - ... <br/>Progress: ${Math.floor(ctx.task.progress * 100) / 100}%`,
-            );
-          } else if (hasRealEnd && !hasRealStart) {
-            ctx.set_details(
-                `... - ${end_date} <br/>Progress: ${Math.floor(ctx.task.progress * 100) / 100}%`,
-            );
-          }
-        }
-
-/*        ctx.set_details(
-            `${start_date} - ${end_date} (${ctx.task.actual_duration} days${ctx.task.ignored_duration ? ' + ' + ctx.task.ignored_duration + ' excluded' : ''})<br/>Progress: ${Math.floor(ctx.task.progress * 100) / 100}%`,
-        );*/
-      // <<< SR: Bar Aggregation -----------------------------------------------
-    },
+    // >>> SR: Default task popup table ---------------------------------------
+    // The Popup class owns the default DOM renderer. A custom popup option
+    // replaces this callback and therefore remains authoritative.
+    popup: (ctx) => ctx.render_default_popup(),
+    // >>> SR: Independent aggregated popup renderer --------------------------
+    // Aggregation content is owned by this callback, not appended to popup.
+    popup_aggregated: (ctx) => ctx.render_default_aggregated_popup(),
+    // <<< SR: Independent aggregated popup renderer --------------------------
+    // Shows descriptive column headers in the default task popup.
+    popup_include_header: false,
+    // <<< SR: Default task popup table ---------------------------------------
     // >>> SR: Hover click popup -----------------------------------------------
     // Values: 'click' | 'hover'
     popup_on: 'click',
     // <<< SR: Hover click popup -----------------------------------------------
+    // >>> SR: External popup requests ----------------------------------------
+    on_popup_request: null,
+    // <<< SR: External popup requests ----------------------------------------
     readonly_progress: false,
     readonly_dates: false,
     readonly: false,
@@ -434,6 +405,10 @@ const DEFAULT_OPTIONS = {
     // 'table' is @experimental
     // Values: 'list' | 'table'
     popup_aggregate_style: 'list',
+    // >>> SR: Aggregation table header ---------------------------------------
+    // Shows descriptive column headers in table-style aggregation popups.
+    popup_aggregate_include_header: false,
+    // <<< SR: Aggregation table header ---------------------------------------
     // Includes tasks that are in the top lane of the row in the aggregate popup. 
     // Set false to only include tasks inside the aggregation block.
     // @experimental
