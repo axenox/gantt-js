@@ -4,6 +4,9 @@ import { $, createSVG } from './svg_utils';
 import Arrow from './arrow';
 import Bar from './bar';
 import Popup from './popup';
+// >>> SR: Instance-scoped SVG resources --------------------------------------
+import SvgIds from './svg_ids';
+// <<< SR: Instance-scoped SVG resources --------------------------------------
 // >>> SR: Popup-independent overlap lookup -----------------------------------
 import {
     get_overlapping_upper_row_tasks,
@@ -34,6 +37,9 @@ import './styles/gantt.css';
 export default class Gantt {
     constructor(wrapper, tasks, options) {
         this.setup_wrapper(wrapper);
+        // >>> SR: Instance-scoped SVG resources ------------------------------
+        this._svg_ids = new SvgIds(this.$svg.ownerDocument);
+        // <<< SR: Instance-scoped SVG resources ------------------------------
         this.setup_options(options);
         this.setup_tasks(tasks);
         this.change_view_mode();
@@ -1027,12 +1033,15 @@ export default class Gantt {
         //TODO SR: Test it once the padding has been fixed:
         //const height = this.get_content_height();
       
-        this.layers.grid.innerHTML += `<pattern id="diagonalHatch" patternUnits="userSpaceOnUse" width="4" height="4">
+        // >>> SR: Instance-scoped SVG resources ------------------------------
+        const hatch_id = this._svg_ids.get('diagonal-hatch');
+        this.layers.grid.innerHTML += `<pattern id="${hatch_id}" patternUnits="userSpaceOnUse" width="4" height="4">
           <path d="M-1,1 l2,-2
                    M0,4 l4,-4
                    M3,5 l2,-2"
                 style="stroke:grey; stroke-width:0.3" />
         </pattern>`;
+        // <<< SR: Instance-scoped SVG resources ------------------------------
 
         for (
             let d = new Date(this.gantt_start);
@@ -1058,7 +1067,9 @@ export default class Gantt {
                 width: this.config.column_width,
                 height: height,
                 class: 'ignored-bar',
-                style: 'fill: url(#diagonalHatch);',
+                // >>> SR: Instance-scoped SVG resources ----------------------
+                style: `fill: url(#${hatch_id});`,
+                // <<< SR: Instance-scoped SVG resources ----------------------
                 append_to: this.$svg,
             });
         }

@@ -16,6 +16,7 @@
 -   **Priority-aware aggregation**: use a task `priority` to keep important tasks visible in the upper lane.
 -   **Aggregation popups**: show aggregate members as a list or table, optionally with a compact Gantt preview.
 -   **Viewport-safe popups**: task and aggregation popups can overlay the Gantt header and scrollbar without being clipped by the chart container.
+-   **Independent SVG resources**: multiple charts, including nested popup charts, can display the same task IDs without clipping each other's labels, thumbnails, aggregation legends or hatch patterns.
 -   **Custom date formatter**: plug in your application date formatter globally.
 -   **View build helpers**: build custom view modes from simplified configuration objects.
 -   **Standard Frappe Gantt features**: custom views, ignored periods, localization, dependencies, read-only modes and progress display.
@@ -81,6 +82,14 @@ const gantt = new Gantt('#gantt', tasks, {
 ```
 
 Tasks with the same `lineIndex` are rendered in the same logical row. If tasks overlap in time, the chart keeps visible tasks in the upper lane(s) and places lower-lane tasks or aggregation bars below them.
+
+## Multiple Gantt Instances
+
+Each chart automatically receives an internal SVG namespace that remains stable across `refresh()`, view changes, option updates and re-rendering. The allocator is shared per document, including separately loaded copies of the library. No additional option or unique container ID is required.
+
+Resource IDs use internal bar identities rather than task IDs, so IDs such as `a.b` and `ab` cannot collide. Business task IDs, dependency references, events and task lookup behavior are unchanged. `label_overflow: 'clip'` remains supported when the same tasks appear in another chart or a popup.
+
+Bar-owned clipping definitions are removed with the bar during `update_task()`, `refresh()` or rendering; labels that no longer need clipping release their previous clipping definition. Hiding a chart does not release its namespace. Use the existing `clear()` and `destroy()` APIs for cleanup; they do not remove resources from other charts. Newly constructed charts receive a fresh namespace, even when reusing a previous container.
 
 ## Task Properties
 
@@ -535,6 +544,8 @@ npm run build
 ```
 
 Use `npm run dev` to build in watch mode.
+
+Run `npm run test:svg` for the SVG-resource browser regression suite. It builds the distribution and exercises source code and two independently loaded bundle copies in headless Chrome/Chromium. The runner uses Node.js 22+ and an installed browser; set `CHROME_PATH` if the executable is not at a detected default location. No browser automation package is required. Fixtures cover duplicate and punctuation-distinct task IDs, all SVG resource types, hidden/reopened charts, refresh/view changes, single-bar updates, pending label callbacks and instance-local cleanup.
 
 <br />
 <br />
