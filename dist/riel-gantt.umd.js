@@ -4431,6 +4431,7 @@
       this.refresh();
     }
     refresh() {
+      this.cancel_pending_popup_request();
       this.bar_group.innerHTML = "";
       this.handle_group.innerHTML = "";
       if (this.task.custom_class) {
@@ -4715,7 +4716,17 @@
     bind() {
       this.setup_click_event();
     }
+    // >>> SR: Latest hover popup position -------------------------------------
+    /** Cancels delayed opening and releases the last pointer event. */
+    cancel_pending_popup_request() {
+      clearTimeout(this._popup_timeout);
+      this._popup_timeout = null;
+      this._popup_hover_event = null;
+    }
+    // <<< SR: Latest hover popup position -------------------------------------
     setup_click_event() {
+      if (this._click_events_bound) return;
+      this._click_events_bound = true;
       let task_id = this.task.id;
       $.on(this.group, "mouseover", (e) => {
         this.gantt.trigger_event("hover", [
@@ -4749,19 +4760,26 @@
         });
       }
       $.on(this.group, "mouseenter", (e) => {
-        clearTimeout(this._popup_timeout);
+        this.cancel_pending_popup_request();
+        this._popup_hover_event = e;
         this._popup_timeout = setTimeout(() => {
+          const hover_event = this._popup_hover_event;
           this._popup_timeout = null;
+          this._popup_hover_event = null;
           if (this.gantt.options.popup_on === "hover" && !this.gantt.is_popup_locked_by_click())
             this.gantt.show_popup({
               // >>> SR: Viewport popup placement ---------------------
-              x: e.clientX,
-              y: e.clientY,
+              // >>> SR: Latest hover popup position -----------------
+              x: hover_event.clientX,
+              y: hover_event.clientY,
+              // <<< SR: Latest hover popup position -----------------
               // <<< SR: Viewport popup placement ---------------------
               task: this.task,
               target: this.$bar,
               // >>> SR: External popup requests ---------------------
-              event: e,
+              // >>> SR: Latest hover popup position -----------------
+              event: hover_event,
+              // <<< SR: Latest hover popup position -----------------
               trigger: "hover"
               // <<< SR: External popup requests ---------------------
             });
@@ -4770,9 +4788,11 @@
           }
         }, 200);
       });
+      $.on(this.group, "mousemove", (e) => {
+        if (this._popup_hover_event) this._popup_hover_event = e;
+      });
       $.on(this.group, "mouseleave", () => {
-        clearTimeout(this._popup_timeout);
-        this._popup_timeout = null;
+        this.cancel_pending_popup_request();
         if (this.gantt.options.popup_on === "hover" && !this.gantt.is_popup_locked_by_click())
           this.gantt.popup?.hide?.();
         if (!this.invalid) {
@@ -7981,8 +8001,7 @@
      */
     cancel_pending_popup_requests() {
       this.bars?.forEach((bar) => {
-        clearTimeout(bar._popup_timeout);
-        bar._popup_timeout = null;
+        bar.cancel_pending_popup_request();
       });
     }
     /**

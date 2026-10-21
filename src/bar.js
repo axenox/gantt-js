@@ -10,6 +10,9 @@ export default class Bar {
     }
 
     refresh() {
+        // >>> SR: Latest hover popup position ---------------------------------
+        this.cancel_pending_popup_request();
+        // <<< SR: Latest hover popup position ---------------------------------
         this.bar_group.innerHTML = '';
         this.handle_group.innerHTML = '';
         if (this.task.custom_class) {
@@ -376,7 +379,21 @@ export default class Bar {
         this.setup_click_event();
     }
 
+    // >>> SR: Latest hover popup position -------------------------------------
+    /** Cancels delayed opening and releases the last pointer event. */
+    cancel_pending_popup_request() {
+        clearTimeout(this._popup_timeout);
+        this._popup_timeout = null;
+        this._popup_hover_event = null;
+    }
+    // <<< SR: Latest hover popup position -------------------------------------
+
     setup_click_event() {
+        // >>> SR: Latest hover popup position ---------------------------------
+        // The wrapper survives refresh; its handlers read the current bar state.
+        if (this._click_events_bound) return;
+        this._click_events_bound = true;
+        // <<< SR: Latest hover popup position ---------------------------------
         let task_id = this.task.id;
         $.on(this.group, 'mouseover', (e) => {
             this.gantt.trigger_event('hover', [
@@ -417,9 +434,14 @@ export default class Bar {
         }
         // >>> SR: External popup requests -------------------------------------
         $.on(this.group, 'mouseenter', (e) => {
-            clearTimeout(this._popup_timeout);
+            // >>> SR: Latest hover popup position -----------------------------
+            this.cancel_pending_popup_request();
+            this._popup_hover_event = e;
             this._popup_timeout = setTimeout(() => {
+                const hover_event = this._popup_hover_event;
                 this._popup_timeout = null;
+                this._popup_hover_event = null;
+                // <<< SR: Latest hover popup position -------------------------
                 // <<< SR: External popup requests -----------------------------
                 // >>> SR: Hover click popup -----------------------------------
                 if (
@@ -429,13 +451,17 @@ export default class Bar {
                 // <<< SR: Hover click popup -----------------------------------
                     this.gantt.show_popup({
                         // >>> SR: Viewport popup placement ---------------------
-                        x: e.clientX,
-                        y: e.clientY,
+                        // >>> SR: Latest hover popup position -----------------
+                        x: hover_event.clientX,
+                        y: hover_event.clientY,
+                        // <<< SR: Latest hover popup position -----------------
                         // <<< SR: Viewport popup placement ---------------------
                         task: this.task,
                         target: this.$bar,
                         // >>> SR: External popup requests ---------------------
-                        event: e,
+                        // >>> SR: Latest hover popup position -----------------
+                        event: hover_event,
+                        // <<< SR: Latest hover popup position -----------------
                         trigger: 'hover',
                         // <<< SR: External popup requests ---------------------
                     });
@@ -449,10 +475,16 @@ export default class Bar {
                 // <<< SR: Bar Aggregation -------------------------------------
           }, 200);
         });
+        // >>> SR: Latest hover popup position ---------------------------------
+        $.on(this.group, 'mousemove', (e) => {
+            if (this._popup_hover_event) this._popup_hover_event = e;
+        });
+        // <<< SR: Latest hover popup position ---------------------------------
         $.on(this.group, 'mouseleave', () => {
             // >>> SR: External popup requests ---------------------------------
-            clearTimeout(this._popup_timeout);
-            this._popup_timeout = null;
+            // >>> SR: Latest hover popup position -----------------------------
+            this.cancel_pending_popup_request();
+            // <<< SR: Latest hover popup position -----------------------------
             // <<< SR: External popup requests ---------------------------------
             // >>> SR: Hover click popup ---------------------------------------
             if (

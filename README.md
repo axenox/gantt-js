@@ -310,6 +310,22 @@ Supported header helper tokens include `~weekRange` for week ranges and `~decade
 
 ## Popup Configuration
 
+### Hover position
+
+With `popup_on: 'hover'`, normal and aggregate popups open at the latest mouse
+viewport position after the existing 200 ms delay. Movements during the delay
+update the position without restarting the timer. Once open, the popup does not
+follow the pointer or request another opening. Leaving the bar, refreshing a bar
+or chart, clearing, and destroying cancel pending hover data.
+
+Native popups and `on_popup_request` receive the same coordinates. External hover
+requests contain the latest `mouseenter` or `mousemove` event in `ctx.event` and
+its `clientX`/`clientY` in `ctx.x`/`ctx.y`. Click requests still use the click
+event; popup disabling and native click pinning are unchanged.
+
+Run `npm run test:popup` in the library directory for controlled-timer browser
+regressions against source and distribution, plus existing popup compatibility checks.
+
 <!-- >>> SR: External popup requests ---------------------------------------- -->
 ### Application-owned popups
 

@@ -1,5 +1,21 @@
 # New Features
 
+<!-- >>> SR: Latest hover popup position ------------------------------------ -->
+## Hover position captured at opening
+
+Ordinary and aggregate bars now update their pending hover event on mousemove.
+After the unchanged 200 ms delay, native and external popups receive the latest
+viewport coordinates and matching event. Movement never restarts the timer and
+does not reposition or reopen an already opened popup. Click requests retain
+click coordinates, and popup disabling and native click pinning are unchanged.
+
+Mouseleave, bar refresh, chart refresh/render, clear, and destroy clear the timer
+and retained event. Surviving bar wrappers bind their handlers only once.
+`npm run test:popup` builds and checks source and distribution with controlled
+browser timers, including all hover transitions, aggregate/native/external paths,
+lifecycle cancellation, and existing popup compatibility scenarios.
+<!-- <<< SR: Latest hover popup position ------------------------------------ -->
+
 <!-- >>> SR: Instance-scoped SVG resources ---------------------------------- -->
 ## Collision-free SVG resources across charts
 

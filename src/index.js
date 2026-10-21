@@ -2038,8 +2038,9 @@ export default class Gantt {
      */
     cancel_pending_popup_requests() {
         this.bars?.forEach((bar) => {
-            clearTimeout(bar._popup_timeout);
-            bar._popup_timeout = null;
+            // >>> SR: Latest hover popup position -----------------------------
+            bar.cancel_pending_popup_request();
+            // <<< SR: Latest hover popup position -----------------------------
         });
     }
 

@@ -119,8 +119,18 @@ try {
         url: `${server.resolvedUrls.local[0]}__svg_test__`,
     }, sessionId);
     await loaded;
-    const result = await send('Runtime.evaluate', {
-        expression: `(async () => {
+    // >>> SR: Latest hover popup position acceptance --------------------------
+    const popup_suite = process.argv.includes('--popup');
+    const expression = popup_suite ? `(async () => {
+            const { run_popup_request_acceptance } = await import('/tests/popup_requests.browser.js');
+            const { run_hover_popup_acceptance } = await import('/tests/hover_popup.browser.js');
+            const { default: Source } = await import('/src/index.js');
+            const { default: Bundle } = await import('/dist/riel-gantt.es.js');
+            const source = run_hover_popup_acceptance(Source);
+            const bundled = run_hover_popup_acceptance(Bundle);
+            const existing = await run_popup_request_acceptance(Source);
+            return { source: source.length, bundled: bundled.length, existing: existing.length };
+        })()` : `(async () => {
             const { run_svg_resource_acceptance } = await import('/tests/svg_resources.browser.js');
             const { default: Source } = await import('/src/index.js');
             const { default: CopyA } = await import('/dist/riel-gantt.es.js?copy=a');
@@ -128,7 +138,10 @@ try {
             const source = await run_svg_resource_acceptance(Source);
             const bundled = await run_svg_resource_acceptance(CopyA, CopyB);
             return { source: source.length, bundled: bundled.length };
-        })()`,
+        })()`;
+    const result = await send('Runtime.evaluate', {
+        expression,
+        // <<< SR: Latest hover popup position acceptance ----------------------
         awaitPromise: true,
         returnByValue: true,
     }, sessionId);
@@ -136,7 +149,9 @@ try {
         throw new Error(result.exceptionDetails.exception?.description ||
             JSON.stringify(result.exceptionDetails));
     }
-    console.log('SVG resource acceptance passed:', result.result.value);
+    // >>> SR: Latest hover popup position acceptance --------------------------
+    console.log(popup_suite ? 'Popup acceptance passed:' : 'SVG resource acceptance passed:', result.result.value);
+    // <<< SR: Latest hover popup position acceptance --------------------------
 } finally {
     for (const request of pending.values()) request.reject(new Error('Runner shutting down'));
     pending.clear();
