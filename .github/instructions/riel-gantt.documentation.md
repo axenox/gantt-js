@@ -1,5 +1,31 @@
 # New Features
 
+<!-- >>> SR: Latest hover popup position ------------------------------------ -->
+## Hover position captured at opening
+
+Ordinary and aggregate bars now update their pending hover event on mousemove.
+After the unchanged 200 ms delay, native and external popups receive the latest
+viewport coordinates and matching event. Movement never restarts the timer and
+does not reposition or reopen an already opened popup. Click requests retain
+click coordinates, and popup disabling and native click pinning are unchanged.
+
+Mouseleave, bar refresh, chart refresh/render, clear, and destroy clear the timer
+and retained event. Surviving bar wrappers bind their handlers only once.
+`npm run test:popup` builds and checks source and distribution with controlled
+browser timers, including all hover transitions, aggregate/native/external paths,
+lifecycle cancellation, and existing popup compatibility scenarios.
+<!-- <<< SR: Latest hover popup position ------------------------------------ -->
+
+<!-- >>> SR: Instance-scoped SVG resources ---------------------------------- -->
+## Collision-free SVG resources across charts
+
+`src/svg_ids.js` centralizes SVG IDs. Each constructor obtains a permanent namespace from a monotonic allocator stored under `Symbol.for('riel-gantt.svg-instance-allocator')` on its SVG's owner document. Separately loaded library copies therefore share the allocator, including while charts are hidden or removed. The document retains only the counter; a per-chart WeakMap assigns internal bar identities without retaining old bars or modifying business task IDs. IDs contain only selector-safe internal tokens and numbers.
+
+Label clips, thumbnail masks and clips, aggregation-legend clips, invalid-bar hatch patterns and ignored-period hatch patterns use this allocator for definitions and references. Label and legend lookups/removals are confined to their owning bar inside the instance SVG. Bar-owned definitions disappear with the bar on `update_task()`, refresh and render; fitting/outside labels release their unused label clip. The invalid-bar pattern lives in root SVG defs rather than any bar's defs so refreshing one bar cannot remove another bar's shared fill. Existing `clear()`/`destroy()` remove only instance-owned resources.
+
+`label_overflow: 'clip'`, task identities, dependencies, events and task lookup contracts are unchanged. No new public option or cleanup API is introduced. Run `npm run test:svg` to build and check actual document-level URL/href resolution in headless Chrome for source and separately loaded distribution copies, including equal task IDs, punctuation/Unicode IDs, different clipping coordinates, hidden/reopened charts and repeated lifecycle calls.
+<!-- <<< SR: Instance-scoped SVG resources ---------------------------------- -->
+
 <!-- >>> SR: All same-row overlapping tasks --------------------------------- -->
 ## All original same-row overlapping tasks
 
