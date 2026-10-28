@@ -4427,6 +4427,7 @@ class Bar {
     this.refresh();
   }
   refresh() {
+    this.cancel_pending_popup_request();
     this.bar_group.innerHTML = "";
     this.handle_group.innerHTML = "";
     if (this.task.custom_class) {
@@ -4619,11 +4620,15 @@ class Bar {
   draw_thumbnail() {
     let x_offset = 10, y_offset = 2;
     let defs, clipPath;
+    const mask_id = this.gantt._svg_ids.get("image-mask", this);
+    const clip_id = this.gantt._svg_ids.get("clip-image", this);
     defs = createSVG("defs", {
       append_to: this.bar_group
     });
     createSVG("rect", {
-      id: "rect_" + this.task.id,
+      // >>> SR: Instance-scoped SVG resources --------------------------
+      id: mask_id,
+      // <<< SR: Instance-scoped SVG resources --------------------------
       x: this.x + x_offset,
       y: this.y + y_offset,
       width: this.image_size,
@@ -4633,11 +4638,15 @@ class Bar {
       append_to: defs
     });
     clipPath = createSVG("clipPath", {
-      id: "clip_" + this.task.id,
+      // >>> SR: Instance-scoped SVG resources --------------------------
+      id: clip_id,
+      // <<< SR: Instance-scoped SVG resources --------------------------
       append_to: defs
     });
     createSVG("use", {
-      href: "#rect_" + this.task.id,
+      // >>> SR: Instance-scoped SVG resources --------------------------
+      href: `#${mask_id}`,
+      // <<< SR: Instance-scoped SVG resources --------------------------
       append_to: clipPath
     });
     createSVG("image", {
@@ -4647,7 +4656,9 @@ class Bar {
       height: this.image_size,
       class: "bar-img",
       href: this.task.thumbnail,
-      clipPath: "clip_" + this.task.id,
+      // >>> SR: Instance-scoped SVG resources --------------------------
+      clipPath: clip_id,
+      // <<< SR: Instance-scoped SVG resources --------------------------
       append_to: this.bar_group
     });
   }
@@ -4701,7 +4712,17 @@ class Bar {
   bind() {
     this.setup_click_event();
   }
+  // >>> SR: Latest hover popup position -------------------------------------
+  /** Cancels delayed opening and releases the last pointer event. */
+  cancel_pending_popup_request() {
+    clearTimeout(this._popup_timeout);
+    this._popup_timeout = null;
+    this._popup_hover_event = null;
+  }
+  // <<< SR: Latest hover popup position -------------------------------------
   setup_click_event() {
+    if (this._click_events_bound) return;
+    this._click_events_bound = true;
     let task_id = this.task.id;
     $.on(this.group, "mouseover", (e) => {
       this.gantt.trigger_event("hover", [
@@ -4735,19 +4756,26 @@ class Bar {
       });
     }
     $.on(this.group, "mouseenter", (e) => {
-      clearTimeout(this._popup_timeout);
+      this.cancel_pending_popup_request();
+      this._popup_hover_event = e;
       this._popup_timeout = setTimeout(() => {
+        const hover_event = this._popup_hover_event;
         this._popup_timeout = null;
+        this._popup_hover_event = null;
         if (this.gantt.options.popup_on === "hover" && !this.gantt.is_popup_locked_by_click())
           this.gantt.show_popup({
             // >>> SR: Viewport popup placement ---------------------
-            x: e.clientX,
-            y: e.clientY,
+            // >>> SR: Latest hover popup position -----------------
+            x: hover_event.clientX,
+            y: hover_event.clientY,
+            // <<< SR: Latest hover popup position -----------------
             // <<< SR: Viewport popup placement ---------------------
             task: this.task,
             target: this.$bar,
             // >>> SR: External popup requests ---------------------
-            event: e,
+            // >>> SR: Latest hover popup position -----------------
+            event: hover_event,
+            // <<< SR: Latest hover popup position -----------------
             trigger: "hover"
             // <<< SR: External popup requests ---------------------
           });
@@ -4756,9 +4784,11 @@ class Bar {
         }
       }, 200);
     });
+    $.on(this.group, "mousemove", (e) => {
+      if (this._popup_hover_event) this._popup_hover_event = e;
+    });
     $.on(this.group, "mouseleave", () => {
-      clearTimeout(this._popup_timeout);
-      this._popup_timeout = null;
+      this.cancel_pending_popup_request();
       if (this.gantt.options.popup_on === "hover" && !this.gantt.is_popup_locked_by_click())
         this.gantt.popup?.hide?.();
       if (!this.invalid) {
@@ -5042,6 +5072,8 @@ class Bar {
     );
   }
   update_label_position() {
+    const clipId = this.gantt._svg_ids.get("clip-label", this);
+    this.bar_group.querySelector(`#${clipId}`)?.remove();
     const img_mask = this.bar_group.querySelector(".img_mask") || "";
     const bar = this.$bar, label = this.group.querySelector(".bar-label"), img = this.group.querySelector(".bar-img");
     let padding = 5;
@@ -5100,11 +5132,8 @@ class Bar {
       label.classList.add("clip-left");
       label.setAttribute("x", bar.getX() + insetX + (img ? x_offset_label_img : 0));
       label.setAttribute("y", bar.getY() + bar.getHeight() / 2);
-      const clipId = `clip-label-${String(this.task.id).replace(/[^a-zA-Z0-9_-]/g, "")}`;
-      let defs = this.gantt.$svg.querySelector("defs");
-      if (!defs) defs = createSVG("defs", { append_to: this.gantt.$svg });
-      const old = this.gantt.$svg.querySelector(`#${clipId}`);
-      if (old) old.remove();
+      let defs = this.bar_group.querySelector("defs");
+      if (!defs) defs = createSVG("defs", { append_to: this.bar_group });
       const cp = createSVG("clipPath", { id: clipId, append_to: defs });
       createSVG("rect", {
         x: bar.getX() + insetX + (img ? x_offset_label_img : 0),
@@ -5176,11 +5205,11 @@ class Bar {
    * It contains all the bars that overlaps more than 2 times with another bars.
    */
   build_aggregation_bar() {
-    let defs = this.gantt.$svg.querySelector("defs");
-    if (!defs) defs = createSVG("defs", { append_to: this.gantt.$svg });
+    let defs = this.bar_group.querySelector("defs");
+    if (!defs) defs = createSVG("defs", { append_to: this.bar_group });
     const inset = 1.5;
-    const clipId = `clip-legend-${String(this.task.id).replace(/[^a-zA-Z0-9_-]/g, "")}`;
-    const oldClip = this.gantt.$svg.querySelector(`#${clipId}`);
+    const clipId = this.gantt._svg_ids.get("clip-legend", this);
+    const oldClip = this.bar_group.querySelector(`#${clipId}`);
     if (oldClip) oldClip.remove();
     const $cp = createSVG("clipPath", { id: clipId, append_to: defs });
     createSVG("rect", {
@@ -5255,11 +5284,12 @@ class Bar {
   define_svg_hatch_pattern() {
     const svg = this.gantt.$svg;
     if (!svg) return;
-    let defs = svg.querySelector("defs");
+    let defs = svg.querySelector(":scope > defs");
     if (!defs) defs = createSVG("defs", { append_to: svg });
-    if (svg.querySelector("#hatchPattern")) return;
+    const pattern_id = this.gantt._svg_ids.get("invalid-hatch");
+    if (svg.querySelector(`#${pattern_id}`)) return;
     const pattern = createSVG("pattern", {
-      id: "hatchPattern",
+      id: pattern_id,
       patternUnits: "userSpaceOnUse",
       width: 12,
       height: 12,
@@ -5279,7 +5309,7 @@ class Bar {
   }
   /**
    * draws a diagonal hatch overlay on top of the bar to indicate that it is invalid. 
-   * It uses the defined "hatchPattern" SVG pattern as a fill for a rectangle that covers the entire bar area. 
+   * It uses the instance-scoped hatch pattern as a fill covering the entire bar.
    * The overlay is non-interactive, allowing clicks and drags to pass through to the bar below.
    */
   draw_invalid_overlay() {
@@ -5298,7 +5328,8 @@ class Bar {
       class: "bar-invalid-overlay",
       append_to: this.bar_group
     });
-    this.$bar_invalid_overlay.setAttribute("fill", "url(#hatchPattern)");
+    const pattern_id = this.gantt._svg_ids.get("invalid-hatch");
+    this.$bar_invalid_overlay.setAttribute("fill", `url(#${pattern_id})`);
     this.$bar_invalid_overlay.setAttribute("pointer-events", "none");
   }
   /**
@@ -6152,6 +6183,31 @@ class Popup {
   }
   // <<< SR: Bar Aggregation
 }
+const allocator_key = /* @__PURE__ */ Symbol.for("riel-gantt.svg-instance-allocator");
+class SvgIds {
+  /** Shares a monotonic allocator across library copies in the same document. */
+  constructor(document2) {
+    if (!document2[allocator_key]) {
+      Object.defineProperty(document2, allocator_key, {
+        value: { next: 0 }
+      });
+    }
+    this.instance_id = `riel-gantt-${++document2[allocator_key].next}`;
+    this.bar_ids = /* @__PURE__ */ new WeakMap();
+    this.next_bar_id = 0;
+  }
+  /**
+   * Returns a stable ID for an internal resource type and optional bar owner.
+   * Resource types are library constants, never user-supplied selector text.
+   */
+  get(resource_type, bar) {
+    if (!bar) return `${this.instance_id}-${resource_type}`;
+    if (!this.bar_ids.has(bar)) {
+      this.bar_ids.set(bar, ++this.next_bar_id);
+    }
+    return `${this.instance_id}-${resource_type}-${this.bar_ids.get(bar)}`;
+  }
+}
 function getDecade(d) {
   const year = d.getFullYear();
   return String(year - year % 10);
@@ -6496,6 +6552,7 @@ const DEFAULT_OPTIONS = {
 class Gantt {
   constructor(wrapper, tasks, options) {
     this.setup_wrapper(wrapper);
+    this._svg_ids = new SvgIds(this.$svg.ownerDocument);
     this.setup_options(options);
     this.setup_tasks(tasks);
     this.change_view_mode();
@@ -7181,7 +7238,8 @@ class Gantt {
     this.highlight_holidays();
     this.config.ignored_positions = [];
     const height = this.get_content_height();
-    this.layers.grid.innerHTML += `<pattern id="diagonalHatch" patternUnits="userSpaceOnUse" width="4" height="4">
+    const hatch_id = this._svg_ids.get("diagonal-hatch");
+    this.layers.grid.innerHTML += `<pattern id="${hatch_id}" patternUnits="userSpaceOnUse" width="4" height="4">
           <path d="M-1,1 l2,-2
                    M0,4 l4,-4
                    M3,5 l2,-2"
@@ -7200,7 +7258,9 @@ class Gantt {
         width: this.config.column_width,
         height,
         class: "ignored-bar",
-        style: "fill: url(#diagonalHatch);",
+        // >>> SR: Instance-scoped SVG resources ----------------------
+        style: `fill: url(#${hatch_id});`,
+        // <<< SR: Instance-scoped SVG resources ----------------------
         append_to: this.$svg
       });
     }
@@ -7937,8 +7997,7 @@ class Gantt {
    */
   cancel_pending_popup_requests() {
     this.bars?.forEach((bar) => {
-      clearTimeout(bar._popup_timeout);
-      bar._popup_timeout = null;
+      bar.cancel_pending_popup_request();
     });
   }
   /**

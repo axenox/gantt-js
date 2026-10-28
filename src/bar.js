@@ -10,6 +10,9 @@ export default class Bar {
     }
 
     refresh() {
+        // >>> SR: Latest hover popup position ---------------------------------
+        this.cancel_pending_popup_request();
+        // <<< SR: Latest hover popup position ---------------------------------
         this.bar_group.innerHTML = '';
         this.handle_group.innerHTML = '';
         if (this.task.custom_class) {
@@ -267,13 +270,19 @@ export default class Bar {
         let x_offset = 10,
             y_offset = 2;
         let defs, clipPath;
+        // >>> SR: Instance-scoped SVG resources ------------------------------
+        const mask_id = this.gantt._svg_ids.get('image-mask', this);
+        const clip_id = this.gantt._svg_ids.get('clip-image', this);
+        // <<< SR: Instance-scoped SVG resources ------------------------------
 
         defs = createSVG('defs', {
             append_to: this.bar_group,
         });
 
         createSVG('rect', {
-            id: 'rect_' + this.task.id,
+            // >>> SR: Instance-scoped SVG resources --------------------------
+            id: mask_id,
+            // <<< SR: Instance-scoped SVG resources --------------------------
             x: this.x + x_offset,
             y: this.y + y_offset,
             width: this.image_size,
@@ -284,12 +293,16 @@ export default class Bar {
         });
 
         clipPath = createSVG('clipPath', {
-            id: 'clip_' + this.task.id,
+            // >>> SR: Instance-scoped SVG resources --------------------------
+            id: clip_id,
+            // <<< SR: Instance-scoped SVG resources --------------------------
             append_to: defs,
         });
 
         createSVG('use', {
-            href: '#rect_' + this.task.id,
+            // >>> SR: Instance-scoped SVG resources --------------------------
+            href: `#${mask_id}`,
+            // <<< SR: Instance-scoped SVG resources --------------------------
             append_to: clipPath,
         });
 
@@ -300,7 +313,9 @@ export default class Bar {
             height: this.image_size,
             class: 'bar-img',
             href: this.task.thumbnail,
-            clipPath: 'clip_' + this.task.id,
+            // >>> SR: Instance-scoped SVG resources --------------------------
+            clipPath: clip_id,
+            // <<< SR: Instance-scoped SVG resources --------------------------
             append_to: this.bar_group,
         });
     }
@@ -364,7 +379,21 @@ export default class Bar {
         this.setup_click_event();
     }
 
+    // >>> SR: Latest hover popup position -------------------------------------
+    /** Cancels delayed opening and releases the last pointer event. */
+    cancel_pending_popup_request() {
+        clearTimeout(this._popup_timeout);
+        this._popup_timeout = null;
+        this._popup_hover_event = null;
+    }
+    // <<< SR: Latest hover popup position -------------------------------------
+
     setup_click_event() {
+        // >>> SR: Latest hover popup position ---------------------------------
+        // The wrapper survives refresh; its handlers read the current bar state.
+        if (this._click_events_bound) return;
+        this._click_events_bound = true;
+        // <<< SR: Latest hover popup position ---------------------------------
         let task_id = this.task.id;
         $.on(this.group, 'mouseover', (e) => {
             this.gantt.trigger_event('hover', [
@@ -405,9 +434,14 @@ export default class Bar {
         }
         // >>> SR: External popup requests -------------------------------------
         $.on(this.group, 'mouseenter', (e) => {
-            clearTimeout(this._popup_timeout);
+            // >>> SR: Latest hover popup position -----------------------------
+            this.cancel_pending_popup_request();
+            this._popup_hover_event = e;
             this._popup_timeout = setTimeout(() => {
+                const hover_event = this._popup_hover_event;
                 this._popup_timeout = null;
+                this._popup_hover_event = null;
+                // <<< SR: Latest hover popup position -------------------------
                 // <<< SR: External popup requests -----------------------------
                 // >>> SR: Hover click popup -----------------------------------
                 if (
@@ -417,13 +451,17 @@ export default class Bar {
                 // <<< SR: Hover click popup -----------------------------------
                     this.gantt.show_popup({
                         // >>> SR: Viewport popup placement ---------------------
-                        x: e.clientX,
-                        y: e.clientY,
+                        // >>> SR: Latest hover popup position -----------------
+                        x: hover_event.clientX,
+                        y: hover_event.clientY,
+                        // <<< SR: Latest hover popup position -----------------
                         // <<< SR: Viewport popup placement ---------------------
                         task: this.task,
                         target: this.$bar,
                         // >>> SR: External popup requests ---------------------
-                        event: e,
+                        // >>> SR: Latest hover popup position -----------------
+                        event: hover_event,
+                        // <<< SR: Latest hover popup position -----------------
                         trigger: 'hover',
                         // <<< SR: External popup requests ---------------------
                     });
@@ -437,10 +475,16 @@ export default class Bar {
                 // <<< SR: Bar Aggregation -------------------------------------
           }, 200);
         });
+        // >>> SR: Latest hover popup position ---------------------------------
+        $.on(this.group, 'mousemove', (e) => {
+            if (this._popup_hover_event) this._popup_hover_event = e;
+        });
+        // <<< SR: Latest hover popup position ---------------------------------
         $.on(this.group, 'mouseleave', () => {
             // >>> SR: External popup requests ---------------------------------
-            clearTimeout(this._popup_timeout);
-            this._popup_timeout = null;
+            // >>> SR: Latest hover popup position -----------------------------
+            this.cancel_pending_popup_request();
+            // <<< SR: Latest hover popup position -----------------------------
             // <<< SR: External popup requests ---------------------------------
             // >>> SR: Hover click popup ---------------------------------------
             if (
@@ -856,6 +900,11 @@ export default class Bar {
     }
 
     update_label_position() {
+        // >>> SR: Instance-scoped SVG resources ------------------------------
+        const clipId = this.gantt._svg_ids.get('clip-label', this);
+        // Remove unused clips as well when the label fits or moves outside.
+        this.bar_group.querySelector(`#${clipId}`)?.remove();
+        // <<< SR: Instance-scoped SVG resources ------------------------------
         const img_mask = this.bar_group.querySelector('.img_mask') || '';
         const bar = this.$bar,
             label = this.group.querySelector('.bar-label'),
@@ -942,13 +991,11 @@ export default class Bar {
           label.setAttribute('y', bar.getY() + bar.getHeight() / 2);
   
           // ClipPath: cuts ONLY on the right (and top/bottom), not on the left
-          const clipId = `clip-label-${String(this.task.id).replace(/[^a-zA-Z0-9_-]/g,'')}`;
-          let defs = this.gantt.$svg.querySelector('defs');
-          if (!defs) defs = createSVG('defs', { append_to: this.gantt.$svg });
-  
-          // Removes old clip
-          const old = this.gantt.$svg.querySelector(`#${clipId}`);
-          if (old) old.remove();
+          // >>> SR: Instance-scoped SVG resources ----------------------------
+          // Bar.refresh() and Gantt.clear() remove these definitions with the bar.
+          let defs = this.bar_group.querySelector('defs');
+          if (!defs) defs = createSVG('defs', { append_to: this.bar_group });
+          // <<< SR: Instance-scoped SVG resources ----------------------------
   
           const cp = createSVG('clipPath', { id: clipId, append_to: defs });
           
@@ -1039,14 +1086,16 @@ export default class Bar {
      */
     build_aggregation_bar() {
       
-      let defs = this.gantt.$svg.querySelector('defs');
-      if (!defs) defs = createSVG('defs', { append_to: this.gantt.$svg });
+      // >>> SR: Instance-scoped SVG resources --------------------------------
+      let defs = this.bar_group.querySelector('defs');
+      if (!defs) defs = createSVG('defs', { append_to: this.bar_group });
 
       const inset = 1.5; // px: minimum distance to edge/frame
-      const clipId = `clip-legend-${String(this.task.id).replace(/[^a-zA-Z0-9_-]/g, '')}`;
+      const clipId = this.gantt._svg_ids.get('clip-legend', this);
 
-      const oldClip = this.gantt.$svg.querySelector(`#${clipId}`);
+      const oldClip = this.bar_group.querySelector(`#${clipId}`);
       if (oldClip) oldClip.remove();
+      // <<< SR: Instance-scoped SVG resources --------------------------------
 
       // ClipPath: ClipPath: rounded rectangle within the bar
       const $cp = createSVG('clipPath', { id: clipId, append_to: defs });
@@ -1138,18 +1187,24 @@ export default class Bar {
       const svg = this.gantt.$svg;
       if (!svg) return;
   
-      let defs = svg.querySelector('defs');
+      // >>> SR: Instance-scoped SVG resources --------------------------------
+      // Shared patterns must outlive any individual Bar.refresh().
+      let defs = svg.querySelector(':scope > defs');
       if (!defs) defs = createSVG('defs', { append_to: svg });
+      // <<< SR: Instance-scoped SVG resources --------------------------------
       
-      if (svg.querySelector('#hatchPattern')) return;
+      // >>> SR: Instance-scoped SVG resources --------------------------------
+      const pattern_id = this.gantt._svg_ids.get('invalid-hatch');
+      if (svg.querySelector(`#${pattern_id}`)) return;
   
       const pattern = createSVG('pattern', {
-        id: 'hatchPattern',
+        id: pattern_id,
         patternUnits: 'userSpaceOnUse',
         width: 12,
         height: 12,
         append_to: defs,
       });
+      // <<< SR: Instance-scoped SVG resources --------------------------------
       
       pattern.setAttribute('patternTransform', 'rotate(45 4 4)');
       
@@ -1166,7 +1221,7 @@ export default class Bar {
 
   /**
    * draws a diagonal hatch overlay on top of the bar to indicate that it is invalid. 
-   * It uses the defined "hatchPattern" SVG pattern as a fill for a rectangle that covers the entire bar area. 
+   * It uses the instance-scoped hatch pattern as a fill covering the entire bar.
    * The overlay is non-interactive, allowing clicks and drags to pass through to the bar below.
    */
   draw_invalid_overlay() {
@@ -1188,7 +1243,10 @@ export default class Bar {
         append_to: this.bar_group,
       });
 
-      this.$bar_invalid_overlay.setAttribute('fill', 'url(#hatchPattern)');
+      // >>> SR: Instance-scoped SVG resources --------------------------------
+      const pattern_id = this.gantt._svg_ids.get('invalid-hatch');
+      this.$bar_invalid_overlay.setAttribute('fill', `url(#${pattern_id})`);
+      // <<< SR: Instance-scoped SVG resources --------------------------------
       this.$bar_invalid_overlay.setAttribute('pointer-events', 'none');
     }
 
